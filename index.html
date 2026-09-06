@@ -370,7 +370,7 @@ const outcomes = {
     zoneDrop:    {yards:8,  text:"No one sets the edge \u2014 he turns the corner and gets up the sideline.", role:'S'},
     manPress:    {yards:5,  text:"Corners are locked on their receivers \u2014 edge support arrives a step late.", role:'CB'},
     spyDraw:     {yards:3,  text:"Only one extra eye on the backfield \u2014 the edge holds up close to normal.", role:'LB'},
-    allOutBlitz: {yards:12, text:"Nobody stayed home to set the edge \u2014 he turns the corner untouched.", role:'S'},
+    allOutBlitz: {yards:12, text:"Nobody stayed home to set the edge \u2014 he turns the corner untouched.", role:'S', breakaway:true},
     prevent:     {yards:10, text:"The whole back seven is retreating \u2014 no one sets the edge and he turns the corner clean.", role:'S'},
     stunt:       {yards:9,  text:"The stunt pulls the front inside \u2014 nobody's left to set the edge on the perimeter.", role:'CB'},
   },
@@ -380,7 +380,7 @@ const outcomes = {
     zoneDrop:    {yards:0,  text:"The underneath zone sits right in the throwing lane \u2014 incomplete.", role:'S'},
     manPress:    {yards:1,  text:"Tight man coverage jumps the route the instant it breaks \u2014 broken up.", role:'CB'},
     spyDraw:     {yards:5,  text:"Pulling a defender to spy the backfield opens the window underneath.", role:'LB'},
-    allOutBlitz: {yards:8,  text:"Max pressure, but the ball's already gone \u2014 nobody's left to rally underneath.", role:'S'},
+    allOutBlitz: {yards:8,  text:"Max pressure, but the ball's already gone \u2014 nobody's left to rally underneath.", role:'S', breakaway:true},
     prevent:     {yards:6,  text:"Prevent concedes exactly this \u2014 the underneath route sits wide open all day.", role:'S'},
     stunt:       {yards:7,  text:"The stunt takes an extra beat to develop \u2014 the ball's already out before it ever gets home.", role:'CB'},
   },
@@ -390,7 +390,7 @@ const outcomes = {
     zoneDrop:    {yards:3,  text:"The deep zone was already sitting back \u2014 the fake doesn't fool anybody.", role:'S'},
     manPress:    {yards:9,  text:"The press corner steps up on the run fake and gets left behind deep.", role:'S'},
     spyDraw:     {yards:10, text:"The spy is watching the backfield, not the release \u2014 the shot downfield connects.", role:'S'},
-    allOutBlitz: {yards:18, text:"A full blitz leaves absolutely nobody in coverage \u2014 it's off to the races.", role:'S'},
+    allOutBlitz: {yards:18, text:"A full blitz leaves absolutely nobody in coverage \u2014 it's off to the races.", role:'S', breakaway:true},
     prevent:     {yards:4,  text:"So many bodies are already deep that the fake barely matters \u2014 the shot gets swallowed before it ever gets going.", role:'S'},
     stunt:       {yards:5,  text:"The line game distracts the tackles just enough \u2014 there's a crack of time for the fake to hold up.", role:'S'},
   },
@@ -400,7 +400,7 @@ const outcomes = {
     zoneDrop:    {yards:2,  text:"Underneath defenders are already sitting and watching \u2014 the screen never has room.", role:'LB'},
     manPress:    {yards:4,  text:"Man coverage doesn't affect the screen much either way \u2014 a modest gain after the catch.", role:'LB'},
     spyDraw:     {yards:1,  text:"The spy is reading backfield action for exactly this \u2014 blown up before it starts.", role:'LB'},
-    allOutBlitz: {yards:16, text:"Every rusher overruns the play \u2014 the blockers get a free lane the other way.", role:'LB'},
+    allOutBlitz: {yards:16, text:"Every rusher overruns the play \u2014 the blockers get a free lane the other way.", role:'LB', breakaway:true},
     prevent:     {yards:7,  text:"Everyone's retreating instead of rallying \u2014 the screen finds a soft crease underneath.", role:'S'},
     stunt:       {yards:1,  text:"The stunting linemen read the screen the whole way and collapse it before it starts.", role:'DL'},
   },
@@ -410,7 +410,7 @@ const outcomes = {
     zoneDrop:    {yards:5,  text:"With fewer bodies rushing, there's a little more room to work with up front.", role:'LB'},
     manPress:    {yards:6,  text:"Man coverage ties up the receivers \u2014 the backfield is wide open for the handoff.", role:'LB'},
     spyDraw:     {yards:-1, text:"The spy is watching for exactly this \u2014 met in the backfield for a loss.", role:'LB'},
-    allOutBlitz: {yards:13, text:"A full house rush completely evacuates the middle \u2014 the draw explodes through it.", role:'DL'},
+    allOutBlitz: {yards:13, text:"A full house rush completely evacuates the middle \u2014 the draw explodes through it.", role:'DL', breakaway:true},
     prevent:     {yards:8,  text:"With the whole defence backpedaling, the middle of the field is wide open for the handoff.", role:'LB'},
     stunt:       {yards:3,  text:"The stunt still occupies the middle just enough \u2014 the draw finds only a modest crease.", role:'LB'},
   },
@@ -420,7 +420,7 @@ const outcomes = {
     zoneDrop:    {yards:2,  text:"The deep zone is already sitting where the ball's going \u2014 well covered, incomplete.", role:'S'},
     manPress:    {yards:14, text:"Man coverage on an island with no deep help \u2014 exactly the matchup a shot downfield wants.", role:'CB'},
     spyDraw:     {yards:9,  text:"The spy's eyes are in the backfield, not on the route \u2014 the deep ball is in the air before anyone reacts.", role:'S'},
-    allOutBlitz: {yards:20, text:"Everybody's rushing and nobody's deep \u2014 the protection holds just long enough and this one's gone.", role:'S'},
+    allOutBlitz: {yards:20, text:"Everybody's rushing and nobody's deep \u2014 the protection holds just long enough and this one's gone.", role:'S', breakaway:true},
     prevent:     {yards:1,  text:"This is exactly what prevent is built to stop \u2014 way too many bodies deep for anything to get behind them.", role:'S'},
     stunt:       {yards:8,  text:"The stunt disrupts the pocket but doesn't add a rusher \u2014 there's still just enough time for the route to break open.", role:'CB'},
   },
@@ -430,7 +430,7 @@ const outcomes = {
     zoneDrop:    {yards:6,  text:"Nobody overflows hard to the ball, but nobody's spying the reverse either \u2014 a fair gain before it's tracked down.", role:'LB'},
     manPress:    {yards:7,  text:"Corners are glued to their receivers and never see the ball coming back \u2014 a healthy gain before the safety tracks it down.", role:'S'},
     spyDraw:     {yards:0,  text:"The spy is reading backfield action for exactly this kind of misdirection \u2014 met immediately, no gain.", role:'LB'},
-    allOutBlitz: {yards:17, text:"Every single defender flows hard toward the fake direction \u2014 the reverse has the entire backside to itself.", role:'S'},
+    allOutBlitz: {yards:17, text:"Every single defender flows hard toward the fake direction \u2014 the reverse has the entire backside to itself.", role:'S', breakaway:true},
     prevent:     {yards:5,  text:"Nobody up front is flowing hard either way \u2014 a modest gain before the safeties close in from deep.", role:'CB'},
     stunt:       {yards:9,  text:"The stunting linemen are committed to their exchange up front and can't redirect \u2014 the reverse gets outside before anyone recovers.", role:'DL'},
   },
@@ -451,14 +451,17 @@ function computeOutcome(g){
     return outcomes[g.offPlayKey][g.defCallKey];
   }
   const base = categoryMatrix[playObj.category][callObj.category];
+  const breakaway = callObj.category === 'blitz' && base >= 5;
   const tierText = base<=2 ? "and it's snuffed out for almost nothing"
     : base<=5 ? "and picks up a modest gain"
     : base<=8 ? "and finds a healthy chunk of yardage"
+    : breakaway ? "and there's nobody left back there \u2014 he's gone"
     : "and breaks into the open for a big gain";
   return {
     yards: base,
     text: `${playObj.name} goes up against ${callObj.name} \u2014 ${tierText}.`,
     role: CALL_ROLE_BY_CATEGORY[callObj.category] || 'LB',
+    breakaway,
   };
 }
 
@@ -1402,20 +1405,29 @@ function resultBox(){
 function resolvePlay(g){
   const o = computeOutcome(g);
   let yards = o.yards;
-  let newBallOn = g.ballOn + yards;
   let touchdown = false, driveOver = false;
+  let newBallOn;
 
-  if(newBallOn >= 100){
-    touchdown = true; driveOver = true; newBallOn = 100;
-  } else if(yards >= g.distance){
-    g.down = 1; g.distance = Math.min(10, 100-newBallOn);
+  if(o.breakaway){
+    yards = 100 - g.ballOn;
+    newBallOn = 100;
+    touchdown = true; driveOver = true;
   } else {
-    g.down += 1; g.distance -= yards;
-    if(g.distance < 1) g.distance = 1;
-    if(g.down > 4){ driveOver = true; newBallOn = 25; g.down = 1; g.distance = 10; }
+    newBallOn = g.ballOn + yards;
+    if(newBallOn >= 100){
+      touchdown = true; driveOver = true; newBallOn = 100;
+      yards = 100 - g.ballOn;
+    } else if(yards >= g.distance){
+      g.down = 1; g.distance = Math.min(10, 100-newBallOn);
+    } else {
+      g.down += 1; g.distance -= yards;
+      if(g.distance < 1) g.distance = 1;
+      if(g.down > 4){ driveOver = true; newBallOn = 25; g.down = 1; g.distance = 10; }
+    }
   }
   g.ballOn = newBallOn;
-  g.lastResult = { yards:o.yards, text:o.text, role:o.role, touchdown, driveOver };
+  g.lastResult = { yards, text:o.text, role:o.role, touchdown, driveOver };
+  if(o.breakaway && touchdown) g.lastResult.text += " Nobody's catching him \u2014 touchdown!";
   if(driveOver && !touchdown) g.lastResult.text += " Turnover on downs \u2014 fresh drive.";
 }
 
