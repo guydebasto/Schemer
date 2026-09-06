@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schemer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg-dark:#0F241D;
+    --board:#1B4332;
+    --board-line:#2F5C4C;
+    --chalk:#F4F1E8;
+    --chalk-dim:#B9C7BE;
+    --gold:#E8C468;
+    --gold-dim:#8a7a49;
+    --brick:#C1503F;
+    --brick-dim:#7a3931;
+    --hash:#3f6a58;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg-dark);color:var(--chalk);font-family:'Space Grotesk',sans-serif;}
+  .app{max-width:720px;margin:0 auto;padding:18px 16px 40px;}
+
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;gap:12px;}
+  .masthead h1{font-size:22px;font-weight:700;margin:0;letter-spacing:0.2px;}
+  .masthead .tag{font-size:12px;color:var(--chalk-dim);text-align:right;line-height:1.4;cursor:default;}
+
+  .field-wrap{position:relative;width:100%;border:1px solid var(--board-line);border-radius:2px;overflow:hidden;background:var(--board);}
+  svg#field{display:block;width:100%;height:auto;}
+
+  .down-bug{
+    position:absolute; top:10px; left:10px;
+    background:rgba(15,36,29,0.72);
+    border:1px dashed var(--chalk-dim);
+    padding:6px 10px;
+    font-size:13px;
+    line-height:1.5;
+  }
+  .down-bug b{color:var(--gold);}
+
+  .role-bug{
+    position:absolute; top:10px; right:10px;
+    background:rgba(15,36,29,0.72);
+    border:1px dashed var(--chalk-dim);
+    padding:6px 10px;
+    font-size:12px;
+    line-height:1.5;
+    text-align:right;
+  }
+  .role-bug b{color:var(--gold);}
+  .role-bug.def b{color:var(--brick);}
+
+  .pos-toggle{
+    position:absolute; top:44px; right:10px;
+    background:rgba(15,36,29,0.72);
+    border:1px dashed var(--chalk-dim);
+    color:var(--chalk-dim);
+    padding:4px 9px;
+    font-size:11px;
+    font-family:'Space Grotesk',sans-serif;
+    cursor:pointer;
+  }
+  .pos-toggle.on{ color:var(--gold); border-color:var(--gold); }
+
+  .phase-callout{
+    position:absolute; bottom:10px; left:10px; right:10px;
+    font-family:'Kalam',cursive;
+    font-size:17px;
+    color:var(--chalk);
+    text-shadow:0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  .panel{margin-top:14px;border-top:1px dashed var(--board-line);padding-top:14px;}
+  .panel .prompt{font-size:15px;color:var(--chalk-dim);margin-bottom:10px;}
+  .panel .prompt em{color:var(--chalk);font-style:normal;font-weight:500;}
+
+  .choice-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+  @media (max-width:520px){ .choice-grid{grid-template-columns:1fr;} }
+
+  .choice-btn{
+    background:transparent;
+    border:1px solid var(--board-line);
+    color:var(--chalk);
+    padding:10px 12px;
+    text-align:left;
+    cursor:pointer;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .choice-btn:hover{border-color:var(--gold);background:rgba(232,196,104,0.06);}
+  .choice-btn .name{display:block;font-weight:700;font-size:14px;margin-bottom:4px;}
+  .choice-btn .desc{display:block;font-size:12px;color:var(--chalk-dim);line-height:1.4;}
+  .choice-btn.def:hover{border-color:var(--brick);background:rgba(193,80,63,0.08);}
+
+  .waiting{
+    text-align:center;
+    padding:34px 16px;
+    border:1px dashed var(--board-line);
+  }
+  .waiting .icon{font-size:24px;margin-bottom:10px;}
+  .waiting p{font-size:14px;color:var(--chalk-dim);margin:0;}
+  .pulse{ animation:pulseDot 1.4s ease-in-out infinite; }
+  @keyframes pulseDot{ 0%,100%{opacity:0.35;} 50%{opacity:1;} }
+
+  button, .primary-btn{
+    background:var(--gold);
+    color:#1a1509;
+    border:none;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    padding:11px 20px;
+    cursor:pointer;
+  }
+  button:hover, .primary-btn:hover{background:#f3d488;}
+  button.ghost{ background:transparent; color:var(--chalk); border:1px solid var(--board-line); }
+  button.ghost:hover{ border-color:var(--gold); background:rgba(232,196,104,0.06); }
+
+  .result-box{border:1px dashed var(--gold);padding:14px;}
+  .result-box .yards{font-size:26px;font-weight:700;color:var(--gold);margin-bottom:4px;}
+  .result-box .story{font-family:'Kalam',cursive;font-size:16px;color:var(--chalk);margin:6px 0 14px;}
+  .result-box .td{color:var(--brick);font-weight:700;font-size:15px;margin-bottom:6px;}
+
+  .footer-link{margin-top:18px;text-align:center;}
+  .footer-link a{color:var(--chalk-dim);font-size:12px;cursor:pointer;text-decoration:underline;margin:0 8px;}
+  .footer-link a:hover{color:var(--chalk);}
+
+  .marker-pop{ transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.2,1.4,0.4,1); }
+
+  @keyframes burstRing{
+    0%   { r:3;  stroke-width:4; opacity:0.95; }
+    100% { r:24; stroke-width:1; opacity:0; }
+  }
+  .tackle-burst{ animation: burstRing 0.55s ease-out forwards; }
+
+  #panel.fading{ opacity:0; transition:none; }
+  #panel{ transition: opacity 0.16s ease; }
+
+  /* --- lobby --- */
+  .lobby-card{ border:1px dashed var(--board-line); padding:22px 18px; text-align:center; }
+  .lobby-card h2{ font-size:18px; margin:0 0 6px; }
+  .lobby-card p.sub{ font-size:13px; color:var(--chalk-dim); margin:0 0 20px; }
+  .role-pick{ display:flex; gap:10px; justify-content:center; margin-bottom:8px; }
+  .role-pick button{ flex:1; max-width:180px; }
+  .code-display{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:38px; font-weight:700; letter-spacing:6px;
+    color:var(--gold);
+    border:1px dashed var(--gold);
+    padding:14px 10px;
+    margin:16px 0;
+    cursor:pointer;
+  }
+  .code-hint{ font-size:12px; color:var(--chalk-dim); margin-bottom:18px; }
+  .code-input{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:26px; letter-spacing:6px; text-align:center; text-transform:uppercase;
+    background:transparent; border:1px solid var(--board-line); color:var(--chalk);
+    padding:10px; width:180px; margin:0 auto 16px; display:block;
+  }
+  .code-input:focus{ outline:none; border-color:var(--gold); }
+  .lobby-error{ color:var(--brick); font-size:13px; margin-bottom:14px; min-height:16px; }
+  .lobby-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .divider{ margin:22px 0; border-top:1px dashed var(--board-line); }
+
+  /* --- editor --- */
+  .ed-toolbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  .seg-toggle{ display:flex; border:1px solid var(--board-line); }
+  .seg-toggle button{ background:transparent; color:var(--chalk-dim); border:none; padding:8px 12px; font-size:13px; font-weight:500; cursor:pointer; }
+  .seg-toggle button.active{ background:var(--gold); color:#1a1509; font-weight:700; }
+  .seg-toggle button.active.def{ background:var(--brick); color:var(--chalk); }
+  .ed-select, .ed-input{
+    background:transparent; border:1px solid var(--board-line); color:var(--chalk);
+    padding:8px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px;
+  }
+  .ed-input{ flex:1; min-width:140px; }
+  .cat-btn-row{ display:flex; gap:6px; margin-bottom:10px; }
+  .cat-btn{ background:transparent; border:1px solid var(--board-line); color:var(--chalk-dim); padding:7px 12px; font-size:12px; cursor:pointer; }
+  .cat-btn.active{ border-color:var(--gold); color:var(--gold); }
+  .ed-canvas-wrap{ position:relative; width:100%; border:1px solid var(--board-line); background:var(--board); touch-action:none; }
+  .ed-hint{ font-size:12px; color:var(--chalk-dim); margin:10px 0; line-height:1.5; }
+  .ed-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .custom-pill{ font-size:10px; color:var(--gold); border:1px solid var(--gold-dim); padding:1px 5px; margin-left:4px; vertical-align:middle; }
+  .cat-heading{ font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--chalk-dim); margin:14px 0 6px; }
+  .cat-heading:first-of-type{ margin-top:0; }
+  .create-new-btn{
+    width:100%; margin-top:14px; background:transparent; color:var(--chalk-dim);
+    border:1px dashed var(--board-line); padding:12px; font-family:'Space Grotesk',sans-serif;
+    font-size:13px; cursor:pointer;
+  }
+  .create-new-btn:hover{ border-color:var(--gold); color:var(--gold); }
+  .ed-actions button.active-toggle{ border-color:var(--gold); color:var(--gold); }
+
+  .typed-call-row{ display:flex; gap:8px; margin-bottom:14px; }
+  .typed-call-row input{
+    flex:1; background:transparent; border:1px solid var(--board-line); color:var(--chalk);
+    padding:9px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px;
+  }
+  .typed-call-row input:focus{ outline:none; border-color:var(--gold); }
+  .typed-call-row button{
+    background:var(--gold); color:#1a1509; border:none; font-weight:700; font-size:13px;
+    padding:9px 14px; cursor:pointer; font-family:'Space Grotesk',sans-serif;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="masthead">
+    <h1>Schemer</h1>
+    <div class="tag" id="mastheadTag">a tactical trainer<br>play it out with a friend</div>
+  </div>
+
+  <div id="lobby"></div>
+
+  <div id="gameArea" style="display:none;">
+    <div class="field-wrap">
+      <svg id="field" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="down-bug" id="downBug"></div>
+      <div class="role-bug" id="roleBug"></div>
+      <button class="pos-toggle" id="posToggle" type="button">labels</button>
+      <div class="phase-callout" id="phaseCallout"></div>
+    </div>
+
+    <div class="panel" id="panel"></div>
+
+    <div class="footer-link">
+      <a id="restartLink">restart the drive</a>
+      <a id="leaveLink">leave</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ================= firebase (fill this in \u2014 see instructions) ================= */
+// 1. Go to https://console.firebase.google.com, create a free project.
+// 2. Build > Realtime Database > Create Database (test mode is fine to start).
+// 3. Project settings (gear icon) > General > "Your apps" > Add app > Web (</>).
+// 4. Copy the config values it shows you into the object below.
+const firebaseConfig = {
+  apiKey: "REPLACE_WITH_YOUR_API_KEY",
+  databaseURL: "https://REPLACE-WITH-YOUR-PROJECT-default-rtdb.firebaseio.com",
+  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+};
+const FIREBASE_CONFIGURED = firebaseConfig.apiKey.indexOf('REPLACE') === -1;
+if(FIREBASE_CONFIGURED) firebase.initializeApp(firebaseConfig);
+const db = FIREBASE_CONFIGURED ? firebase.database() : null;
+
+/* ================= data (unchanged game content) ================= */
+
+const OL_X = [220,270,320,370,420];
+
+const formations = {
+  iform: { name:"I-Formation", note:"Two backs stacked behind center, tight end attached right \u2014 a power running look.",
+    skill:[{label:'QB',x:320,y:22},{label:'FB',x:320,y:42},{label:'HB',x:320,y:62},{label:'TE',x:450,y:0},{label:'WR',x:60,y:0},{label:'WR',x:580,y:0}] },
+  shotgun: { name:"Shotgun Spread", note:"Quarterback set back off the snap, three receivers spread wide \u2014 built to throw.",
+    skill:[{label:'QB',x:320,y:52},{label:'RB',x:270,y:48},{label:'WR',x:58,y:0},{label:'WR',x:150,y:4},{label:'WR',x:582,y:0},{label:'TE',x:450,y:0}] },
+  singleback: { name:"Singleback Trips", note:"One back, three receivers bunched right \u2014 balanced, leaning toward pass.",
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'WR',x:60,y:0},{label:'TE',x:400,y:0},{label:'WR',x:480,y:4},{label:'WR',x:580,y:0}] },
+  pistol: { name:"Pistol", note:"Quarterback a few yards back, running back stacked right behind him \u2014 keeps run and pass equally live.",
+    skill:[{label:'QB',x:320,y:34},{label:'RB',x:320,y:56},{label:'WR',x:60,y:0},{label:'WR',x:150,y:4},{label:'WR',x:580,y:0},{label:'TE',x:450,y:0}] },
+  wildcat: { name:"Wildcat", note:"Direct snap to the running back \u2014 the quarterback flexes out wide as a decoy.",
+    skill:[{label:'RB',x:320,y:44},{label:'FB',x:270,y:20},{label:'WR',x:60,y:0},{label:'WR',x:150,y:4},{label:'TE',x:450,y:0},{label:'WR',x:580,y:0}] },
+  empty: { name:"Empty (5-Wide)", note:"No running back in sight \u2014 five receivers spread the field, everything is a pass.",
+    skill:[{label:'QB',x:320,y:52},{label:'WR',x:58,y:0},{label:'WR',x:150,y:4},{label:'WR',x:480,y:4},{label:'WR',x:582,y:0},{label:'TE',x:450,y:0}] },
+  goalline: { name:"Goal Line", note:"Two tight ends and two backs crowd the formation \u2014 built to smash forward for a yard, not spread the field.",
+    skill:[{label:'QB',x:320,y:22},{label:'FB',x:320,y:44},{label:'HB',x:320,y:66},{label:'TE',x:450,y:0},{label:'TE',x:190,y:0},{label:'WR',x:580,y:0}] },
+  proset: { name:"Pro Set", note:"Two backs split side by side instead of stacked \u2014 balanced protection, can run or throw from the same look.",
+    skill:[{label:'QB',x:320,y:22},{label:'FB',x:270,y:36},{label:'HB',x:370,y:36},{label:'TE',x:450,y:0},{label:'WR',x:60,y:0},{label:'WR',x:580,y:0}] },
+  ace: { name:"Ace", note:"One back, a tight end on each side \u2014 a balanced, two-way look that can run either direction.",
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:450,y:0},{label:'TE',x:190,y:0},{label:'WR',x:60,y:0},{label:'WR',x:580,y:0}] },
+  bunch: { name:"Bunch Trips", note:"Three receivers bunched tight to one side, a lone receiver isolated on the backside \u2014 creates natural picks and confusion in coverage.",
+    skill:[{label:'QB',x:320,y:52},{label:'RB',x:270,y:48},{label:'WR',x:465,y:6},{label:'WR',x:500,y:14},{label:'WR',x:480,y:-12},{label:'WR',x:60,y:0}] },
+  wishbone: { name:"Wishbone", note:"Three backs stacked in a wishbone shape behind center \u2014 an old-school option look built almost entirely to run.",
+    skill:[{label:'QB',x:320,y:20},{label:'FB',x:320,y:42},{label:'HB',x:270,y:62},{label:'HB',x:370,y:62},{label:'TE',x:450,y:0},{label:'WR',x:60,y:0}] },
+  shotguntwins: { name:"Shotgun Twins", note:"Two receivers stacked on each side, no tight end \u2014 four vertical or crossing options with a back to check down to.",
+    skill:[{label:'QB',x:320,y:50},{label:'RB',x:270,y:46},{label:'WR',x:58,y:0},{label:'WR',x:150,y:4},{label:'WR',x:510,y:4},{label:'WR',x:582,y:0}] },
+  trey: { name:"Trey", note:"Three tight ends stacked to one side \u2014 overloads the formation to create a numbers advantage in the run game.",
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:400,y:0},{label:'TE',x:450,y:0},{label:'TE',x:480,y:4},{label:'WR',x:60,y:0}] }
+};
+
+const fronts = {
+  base43: { name:"4-3 Base", note:"Four down linemen, three linebackers \u2014 even numbers, honest against everything.",
+    players:[{x:265,y:-10,role:'DL'},{x:300,y:-10,role:'DL'},{x:340,y:-10,role:'DL'},{x:375,y:-10,role:'DL'},{x:250,y:-42,role:'LB'},{x:320,y:-42,role:'LB'},{x:390,y:-42,role:'LB'},{x:60,y:-28,role:'CB'},{x:580,y:-28,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+  nickel: { name:"Nickel (4-2-5)", note:"An extra defensive back swaps in for a linebacker \u2014 built to match three receivers.",
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-42,role:'LB'},{x:350,y:-42,role:'LB'},{x:60,y:-24,role:'CB'},{x:320,y:-24,role:'CB'},{x:580,y:-24,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+  bearbox: { name:"Stacked Box", note:"Eight defenders crowd the line \u2014 committed to stopping the run first, and paying for it if they guessed wrong.",
+    players:[{x:240,y:-8,role:'DL'},{x:270,y:-8,role:'DL'},{x:300,y:-8,role:'DL'},{x:340,y:-8,role:'DL'},{x:370,y:-8,role:'DL'},{x:400,y:-8,role:'DL'},{x:220,y:-34,role:'LB'},{x:420,y:-34,role:'LB'},{x:60,y:-20,role:'CB'},{x:580,y:-20,role:'CB'},{x:320,y:-115,role:'S'}] },
+  dime: { name:"Dime", note:"Six defensive backs on the field \u2014 an extra corner replaces a linebacker to blanket a pass-heavy set.",
+    players:[{x:275,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:365,y:-10,role:'DL'},{x:320,y:-40,role:'LB'},{x:60,y:-24,role:'CB'},{x:220,y:-24,role:'CB'},{x:420,y:-24,role:'CB'},{x:580,y:-24,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+  threefour: { name:"3-4 Base", note:"Three down linemen, four linebackers \u2014 more disguise up front, relies on the backers to fill the gaps.",
+    players:[{x:280,y:-12,role:'DL'},{x:320,y:-12,role:'DL'},{x:360,y:-12,role:'DL'},{x:230,y:-40,role:'LB'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:410,y:-40,role:'LB'},{x:60,y:-28,role:'CB'},{x:580,y:-28,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+  quarters: { name:"Quarters", note:"Two safeties sit deep and split the field into quarters \u2014 no big plays allowed, but the short game is there for the taking.",
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:220,y:-105,role:'S'},{x:420,y:-105,role:'S'}] },
+  bignickel: { name:"Big Nickel", note:"A third safety comes on for a linebacker \u2014 keeps speed on the field against bigger receiving personnel.",
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:240,y:-90,role:'S'},{x:320,y:-90,role:'S'},{x:400,y:-90,role:'S'}] },
+  prevent: { name:"Prevent", note:"Almost everyone drops deep \u2014 concedes anything short to guarantee nothing gets behind them.",
+    players:[{x:300,y:-8,role:'DL'},{x:340,y:-8,role:'DL'},{x:260,y:-35,role:'LB'},{x:60,y:-30,role:'CB'},{x:380,y:-30,role:'CB'},{x:580,y:-30,role:'CB'},{x:160,y:-115,role:'S'},{x:240,y:-115,role:'S'},{x:320,y:-115,role:'S'},{x:400,y:-115,role:'S'},{x:480,y:-115,role:'S'}] },
+  fortysix: { name:"46 Overload", note:"Five men crash the line and a safety cheats down into the box \u2014 maximum numbers against the run, thin on the back end.",
+    players:[{x:250,y:-10,role:'DL'},{x:285,y:-10,role:'DL'},{x:320,y:-10,role:'DL'},{x:355,y:-10,role:'DL'},{x:390,y:-10,role:'DL'},{x:300,y:-42,role:'LB'},{x:360,y:-42,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:340,y:-58,role:'S'},{x:400,y:-100,role:'S'}] },
+  cover2: { name:"Cover 2", note:"Corners jam receivers right at the line, two safeties sit deep and split the field in half \u2014 nothing gets behind them, but the middle can be had underneath.",
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:60,y:-14,role:'CB'},{x:580,y:-14,role:'CB'},{x:240,y:-105,role:'S'},{x:400,y:-105,role:'S'}] },
+  cover3: { name:"Cover 3", note:"Three defenders split the deep field into thirds while two safeties rotate underneath \u2014 disguises where the double coverage is.",
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:320,y:-95,role:'CB'},{x:240,y:-90,role:'S'},{x:400,y:-90,role:'S'}] },
+  oddstack: { name:"Odd Stack (3-3-5)", note:"Three down linemen, three linebackers, three safeties \u2014 a hybrid front built for speed over size.",
+    players:[{x:280,y:-12,role:'DL'},{x:320,y:-12,role:'DL'},{x:360,y:-12,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:240,y:-92,role:'S'},{x:320,y:-92,role:'S'},{x:400,y:-92,role:'S'}] },
+  disguise: { name:"Amoeba Disguise", note:"Only two hands in the dirt \u2014 five linebackers stand up across the front, disguising who's actually coming.",
+    players:[{x:300,y:-14,role:'DL'},{x:340,y:-14,role:'DL'},{x:230,y:-32,role:'LB'},{x:275,y:-32,role:'LB'},{x:320,y:-32,role:'LB'},{x:365,y:-32,role:'LB'},{x:410,y:-32,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+  goallineswarm: { name:"Goal Line Swarm", note:"Seven defenders shoulder to shoulder at the line, a single corner locked on the lone receiver \u2014 built for a one-yard stop, nothing else.",
+    players:[{x:220,y:-6,role:'DL'},{x:255,y:-6,role:'DL'},{x:285,y:-6,role:'DL'},{x:320,y:-6,role:'DL'},{x:355,y:-6,role:'DL'},{x:390,y:-6,role:'DL'},{x:420,y:-6,role:'DL'},{x:260,y:-26,role:'LB'},{x:380,y:-26,role:'LB'},{x:580,y:-16,role:'CB'},{x:320,y:-90,role:'S'}] }
+};
+
+const plays = {
+  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:330, bend:0.15, category:'run' },
+  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:520, bend:0.85, category:'run' },
+  quickPass:      { name:"Quick Pass",      note:"Get it out fast on a quick route before the rush arrives.",             xTarget:460, bend:0.55, category:'pass' },
+  playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:380, bend:0.35, category:'playAction' },
+  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:500, bend:0.6,  category:'pass' },
+  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:350, bend:0.25, category:'run' },
+  deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:380, bend:0.2, category:'pass' },
+  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:560, bend:0.9, category:'playAction' },
+};
+const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action' };
+
+const calls = {
+  runBlitz:    { name:"Run Blitz",     note:"Send an extra man to shoot a gap the instant the ball's snapped.", category:'blitz' },
+  contain:     { name:"Contain",       note:"Stay disciplined \u2014 hold the edge, keep it all in front of you.", category:'runD' },
+  zoneDrop:    { name:"Zone Drop",     note:"Drop everyone into coverage \u2014 sit in the throwing lanes.", category:'passD' },
+  manPress:    { name:"Man Press",     note:"Lock every receiver into tight man coverage and dare the quarterback to beat it deep.", category:'passD' },
+  spyDraw:     { name:"Spy the Draw",  note:"Keep one defender glued to the backfield, watching for a delayed handoff or scramble.", category:'runD' },
+  allOutBlitz: { name:"All-Out Blitz", note:"Send everybody \u2014 if it doesn't get home immediately, there's nobody left behind it.", category:'blitz' },
+  prevent:     { name:"Prevent",       note:"Drop nearly everyone deep \u2014 concede the short stuff, guard against the big one.", category:'passD' },
+  stunt:       { name:"Line Stunt",    note:"Cross the linemen's rush lanes on the snap to confuse the blocking scheme.", category:'blitz' },
+};
+const CALL_CATEGORIES = { runD:'Run D', passD:'Pass D', blitz:'Blitz' };
+
+const outcomes = {
+  insideRun: {
+    runBlitz:    {yards:1,  text:"The blitzer shoots straight through the A-gap and meets him at the line.", role:'LB'},
+    contain:     {yards:3,  text:"The front holds its ground \u2014 a modest push for a few yards.", role:'DL'},
+    zoneDrop:    {yards:7,  text:"Nobody's home in the box \u2014 he's through to the second level clean.", role:'S'},
+    manPress:    {yards:4,  text:"Man coverage outside doesn't change much up front \u2014 the line still wins a modest push.", role:'LB'},
+    spyDraw:     {yards:2,  text:"The spy stays home and helps clog the middle \u2014 not much room to work with.", role:'LB'},
+    allOutBlitz: {yards:-2, text:"Everybody crashes at once \u2014 he's swallowed up before the hole even opens.", role:'DL'},
+    prevent:     {yards:9,  text:"Nearly everyone drops deep before the snap even settles \u2014 there's nobody left to fill the inside gaps.", role:'LB'},
+    stunt:       {yards:1,  text:"The stunting lineman loops right into the gap before the back can get through it.", role:'DL'},
+  },
+  sweep: {
+    runBlitz:    {yards:9,  text:"The extra rusher came from the inside \u2014 the edge is wide open.", role:'CB'},
+    contain:     {yards:2,  text:"The edge defender stays disciplined, strings it out for a short gain.", role:'LB'},
+    zoneDrop:    {yards:8,  text:"No one sets the edge \u2014 he turns the corner and gets up the sideline.", role:'S'},
+    manPress:    {yards:5,  text:"Corners are locked on their receivers \u2014 edge support arrives a step late.", role:'CB'},
+    spyDraw:     {yards:3,  text:"Only one extra eye on the backfield \u2014 the edge holds up close to normal.", role:'LB'},
+    allOutBlitz: {yards:12, text:"Nobody stayed home to set the edge \u2014 he turns the corner untouched.", role:'S'},
+    prevent:     {yards:10, text:"The whole back seven is retreating \u2014 no one sets the edge and he turns the corner clean.", role:'S'},
+    stunt:       {yards:9,  text:"The stunt pulls the front inside \u2014 nobody's left to set the edge on the perimeter.", role:'CB'},
+  },
+  quickPass: {
+    runBlitz:    {yards:6,  text:"The blitz gets home a beat late \u2014 the ball's already out for an easy completion.", role:'CB'},
+    contain:     {yards:4,  text:"Balanced coverage limits the damage after the catch.", role:'LB'},
+    zoneDrop:    {yards:0,  text:"The underneath zone sits right in the throwing lane \u2014 incomplete.", role:'S'},
+    manPress:    {yards:1,  text:"Tight man coverage jumps the route the instant it breaks \u2014 broken up.", role:'CB'},
+    spyDraw:     {yards:5,  text:"Pulling a defender to spy the backfield opens the window underneath.", role:'LB'},
+    allOutBlitz: {yards:8,  text:"Max pressure, but the ball's already gone \u2014 nobody's left to rally underneath.", role:'S'},
+    prevent:     {yards:6,  text:"Prevent concedes exactly this \u2014 the underneath route sits wide open all day.", role:'S'},
+    stunt:       {yards:7,  text:"The stunt takes an extra beat to develop \u2014 the ball's already out before it ever gets home.", role:'CB'},
+  },
+  playActionDeep: {
+    runBlitz:    {yards:15, text:"The blitz completely bites on the run fake \u2014 there's nobody left deep.", role:'S'},
+    contain:     {yards:6,  text:"Contain stays patient, but the fake still buys just enough time downfield.", role:'S'},
+    zoneDrop:    {yards:3,  text:"The deep zone was already sitting back \u2014 the fake doesn't fool anybody.", role:'S'},
+    manPress:    {yards:9,  text:"The press corner steps up on the run fake and gets left behind deep.", role:'S'},
+    spyDraw:     {yards:10, text:"The spy is watching the backfield, not the release \u2014 the shot downfield connects.", role:'S'},
+    allOutBlitz: {yards:18, text:"A full blitz leaves absolutely nobody in coverage \u2014 it's off to the races.", role:'S'},
+    prevent:     {yards:4,  text:"So many bodies are already deep that the fake barely matters \u2014 the shot gets swallowed before it ever gets going.", role:'S'},
+    stunt:       {yards:5,  text:"The line game distracts the tackles just enough \u2014 there's a crack of time for the fake to hold up.", role:'S'},
+  },
+  screen: {
+    runBlitz:    {yards:10, text:"The blitzer flies upfield right past the play \u2014 blockers are already out in front of it.", role:'LB'},
+    contain:     {yards:3,  text:"The edge defender stays disciplined and reads it the whole way \u2014 sniffed out early.", role:'LB'},
+    zoneDrop:    {yards:2,  text:"Underneath defenders are already sitting and watching \u2014 the screen never has room.", role:'LB'},
+    manPress:    {yards:4,  text:"Man coverage doesn't affect the screen much either way \u2014 a modest gain after the catch.", role:'LB'},
+    spyDraw:     {yards:1,  text:"The spy is reading backfield action for exactly this \u2014 blown up before it starts.", role:'LB'},
+    allOutBlitz: {yards:16, text:"Every rusher overruns the play \u2014 the blockers get a free lane the other way.", role:'LB'},
+    prevent:     {yards:7,  text:"Everyone's retreating instead of rallying \u2014 the screen finds a soft crease underneath.", role:'S'},
+    stunt:       {yards:1,  text:"The stunting linemen read the screen the whole way and collapse it before it starts.", role:'DL'},
+  },
+  draw: {
+    runBlitz:    {yards:7,  text:"The blitzers rush straight past the handoff point \u2014 the middle opens right up.", role:'DL'},
+    contain:     {yards:2,  text:"The rush stays under control and doesn't overcommit \u2014 the draw is kept in check.", role:'DL'},
+    zoneDrop:    {yards:5,  text:"With fewer bodies rushing, there's a little more room to work with up front.", role:'LB'},
+    manPress:    {yards:6,  text:"Man coverage ties up the receivers \u2014 the backfield is wide open for the handoff.", role:'LB'},
+    spyDraw:     {yards:-1, text:"The spy is watching for exactly this \u2014 met in the backfield for a loss.", role:'LB'},
+    allOutBlitz: {yards:13, text:"A full house rush completely evacuates the middle \u2014 the draw explodes through it.", role:'DL'},
+    prevent:     {yards:8,  text:"With the whole defence backpedaling, the middle of the field is wide open for the handoff.", role:'LB'},
+    stunt:       {yards:3,  text:"The stunt still occupies the middle just enough \u2014 the draw finds only a modest crease.", role:'LB'},
+  },
+  deepPass: {
+    runBlitz:    {yards:1,  text:"There's no run fake to hold the blockers \u2014 the blitz gets home before the deep route even develops.", role:'DL'},
+    contain:     {yards:11, text:"Contain is watching the run first \u2014 nobody rotates over to help deep and the shot connects.", role:'S'},
+    zoneDrop:    {yards:2,  text:"The deep zone is already sitting where the ball's going \u2014 well covered, incomplete.", role:'S'},
+    manPress:    {yards:14, text:"Man coverage on an island with no deep help \u2014 exactly the matchup a shot downfield wants.", role:'CB'},
+    spyDraw:     {yards:9,  text:"The spy's eyes are in the backfield, not on the route \u2014 the deep ball is in the air before anyone reacts.", role:'S'},
+    allOutBlitz: {yards:20, text:"Everybody's rushing and nobody's deep \u2014 the protection holds just long enough and this one's gone.", role:'S'},
+    prevent:     {yards:1,  text:"This is exactly what prevent is built to stop \u2014 way too many bodies deep for anything to get behind them.", role:'S'},
+    stunt:       {yards:8,  text:"The stunt disrupts the pocket but doesn't add a rusher \u2014 there's still just enough time for the route to break open.", role:'CB'},
+  },
+  reverse: {
+    runBlitz:    {yards:13, text:"The blitz flows hard one direction \u2014 the ball's already coming back the other way with numbers to the edge.", role:'CB'},
+    contain:     {yards:1,  text:"The backside stays home instead of flowing with the fake \u2014 the reverse is sniffed out before it turns the corner.", role:'LB'},
+    zoneDrop:    {yards:6,  text:"Nobody overflows hard to the ball, but nobody's spying the reverse either \u2014 a fair gain before it's tracked down.", role:'LB'},
+    manPress:    {yards:7,  text:"Corners are glued to their receivers and never see the ball coming back \u2014 a healthy gain before the safety tracks it down.", role:'S'},
+    spyDraw:     {yards:0,  text:"The spy is reading backfield action for exactly this kind of misdirection \u2014 met immediately, no gain.", role:'LB'},
+    allOutBlitz: {yards:17, text:"Every single defender flows hard toward the fake direction \u2014 the reverse has the entire backside to itself.", role:'S'},
+    prevent:     {yards:5,  text:"Nobody up front is flowing hard either way \u2014 a modest gain before the safeties close in from deep.", role:'CB'},
+    stunt:       {yards:9,  text:"The stunting linemen are committed to their exchange up front and can't redirect \u2014 the reverse gets outside before anyone recovers.", role:'DL'},
+  },
+};
+
+const categoryMatrix = {
+  run:        { runD:2,  passD:7, blitz:5 },
+  pass:       { runD:8,  passD:3, blitz:5 },
+  playAction: { runD:10, passD:4, blitz:2 },
+};
+const CALL_ROLE_BY_CATEGORY = { runD:'LB', passD:'CB', blitz:'DL' };
+
+function computeOutcome(g){
+  const playObj = getPlay(g.offPlayKey, g.offPlayCustom);
+  const callObj = getCall(g.defCallKey, g.defCallCustom);
+  if(outcomes[g.offPlayKey] && outcomes[g.offPlayKey][g.defCallKey]){
+    return outcomes[g.offPlayKey][g.defCallKey];
+  }
+  const base = categoryMatrix[playObj.category][callObj.category];
+  const tierText = base<=2 ? "and it's snuffed out for almost nothing"
+    : base<=5 ? "and picks up a modest gain"
+    : base<=8 ? "and finds a healthy chunk of yardage"
+    : "and breaks into the open for a big gain";
+  return {
+    yards: base,
+    text: `${playObj.name} goes up against ${callObj.name} \u2014 ${tierText}.`,
+    role: CALL_ROLE_BY_CATEGORY[callObj.category] || 'LB',
+  };
+}
+
+/* ---- typed-in play/call calling ---- */
+
+function normalizeCallText(s){ return s.toLowerCase().trim().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' '); }
+function titleCaseCall(s){ return s.trim().replace(/\w\S*/g, w=> w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()); }
+
+function resolveTypedEntry(text, builtinDict, customList){
+  const target = normalizeCallText(text);
+  if(!target) return null;
+  for(const k in builtinDict){ if(normalizeCallText(builtinDict[k].name)===target) return {type:'built', key:k}; }
+  for(const item of customList){ if(normalizeCallText(item.name)===target) return {type:'custom', item}; }
+  for(const k in builtinDict){
+    const n = normalizeCallText(builtinDict[k].name);
+    if(n.includes(target) || target.includes(n)) return {type:'built', key:k};
+  }
+  for(const item of customList){
+    const n = normalizeCallText(item.name);
+    if(n.includes(target) || target.includes(n)) return {type:'custom', item};
+  }
+  return null;
+}
+
+function guessOffCategory(text){
+  const t = text.toLowerCase();
+  if(/play[\s-]?action|\bpa\b|boot|bootleg|fake/.test(t)) return 'playAction';
+  if(/screen|quick|slant|fade|post|corner route|go route|deep|bomb|seam|dig|out\b|comeback|curl/.test(t)) return 'pass';
+  if(/run|sweep|draw|dive|power|counter|iso|zone read|option|toss|trap/.test(t)) return 'run';
+  return 'pass';
+}
+function guessDefCategory(text){
+  const t = text.toLowerCase();
+  if(/blitz|pressure|\bzero\b|dog|fire\s?zone|overload/.test(t)) return 'blitz';
+  if(/cover|zone|buzz|cloud|robber|man|press|quarters|palms|match/.test(t)) return 'passD';
+  if(/run|box|stack|contain|spy|gap/.test(t)) return 'runD';
+  return 'passD';
+}
+
+const OFF_TYPED_DEFAULTS = { run:{xTarget:340,bend:0.3}, pass:{xTarget:460,bend:0.55}, playAction:{xTarget:390,bend:0.4} };
+
+async function handleTypedPlay(text, onPick, onPickCustom){
+  const match = resolveTypedEntry(text, plays, customOffPlays);
+  if(match){ match.type==='built' ? onPick(match.key) : onPickCustom(match.item); return; }
+  const category = guessOffCategory(text);
+  const d = OFF_TYPED_DEFAULTS[category];
+  const item = { id: genId(), name: titleCaseCall(text), category, note:"Called on the fly.", xTarget:d.xTarget, bend:d.bend };
+  customOffPlays = customOffPlays.filter(x=>x.id!==item.id);
+  customOffPlays.push(item);
+  await saveCustomList(CUSTOM_STORE_KEYS.offPlay, customOffPlays);
+  onPickCustom(item);
+}
+
+async function handleTypedCall(text, onPick, onPickCustom){
+  const match = resolveTypedEntry(text, calls, customDefCalls);
+  if(match){ match.type==='built' ? onPick(match.key) : onPickCustom(match.item); return; }
+  const category = guessDefCategory(text);
+  const item = { id: genId(), name: titleCaseCall(text), category, note:"Called on the fly." };
+  customDefCalls = customDefCalls.filter(x=>x.id!==item.id);
+  customDefCalls.push(item);
+  await saveCustomList(CUSTOM_STORE_KEYS.defCall, customDefCalls);
+  onPickCustom(item);
+}
+
+/* ================= networking / room state ================= */
+
+let editorOverlay = null; // {side,type} when the inline in-game creator is open
+let showPosLabels = false; // toggle: defensive players shown as position abbreviations instead of circles
+
+function refreshCurrentView(){
+  if(editorOverlay){ renderPanel(); }
+  else if(appScreen==='in-game'){ render(); }
+  else if(appScreen==='editor'){ renderEditorScreen(); }
+}
+let mode = null;        // 'online' | 'local'
+let roomCode = null;
+let roomMeta = null;    // { offenseTaken, defenseTaken }
+let game = null;        // synced game object
+let lastAnimatedSeq = -1;
+let appScreen = 'landing'; // landing | choose-role | waiting | join-code | join-error | in-game | editor
+
+let customOffFormations = [], customDefFormations = [], customOffPlays = [], customDefCalls = [];
+const CUSTOM_STORE_KEYS = {
+  offForm: 'schemer:custom:off-formations',
+  defForm: 'schemer:custom:def-formations',
+  offPlay: 'schemer:custom:off-plays',
+  defCall: 'schemer:custom:def-calls',
+};
+function lsGetJSON(key){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e){ return null; } }
+function lsSetJSON(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+
+async function loadCustomList(key){ return lsGetJSON(key) || []; }
+async function saveCustomList(key, list){ lsSetJSON(key, list); }
+async function loadAllCustom(){
+  customOffFormations = await loadCustomList(CUSTOM_STORE_KEYS.offForm);
+  customDefFormations = await loadCustomList(CUSTOM_STORE_KEYS.defForm);
+  customOffPlays = await loadCustomList(CUSTOM_STORE_KEYS.offPlay);
+  customDefCalls = await loadCustomList(CUSTOM_STORE_KEYS.defCall);
+}
+function genId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+const SESSION_KEY = 'schemer:lastSession';
+function roomRef(code){ return db.ref('rooms/' + code); }
+
+function freshGame(){
+  return { seq:0, down:1, distance:10, ballOn:25, phase:'OFF_FORMATION',
+    offKey:null, defFrontKey:null, offPlayKey:null, defCallKey:null, lastResult:null,
+    offCustom:null, defFrontCustom:null, offPlayCustom:null, defCallCustom:null };
+}
+
+const CUSTOM = '__custom__';
+function getFormation(key, custom){ return key === CUSTOM ? custom : formations[key]; }
+function getFront(key, custom){ return key === CUSTOM ? custom : fronts[key]; }
+function getPlay(key, custom){ return key === CUSTOM ? custom : plays[key]; }
+function getCall(key, custom){ return key === CUSTOM ? custom : calls[key]; }
+
+function offensePoints(formKey, custom){
+  const f = getFormation(formKey, custom);
+  if(formKey === CUSTOM) return f.players;
+  return OL_X.map(x=>({x,y:0})).concat(f.skill);
+}
+function defensePoints(frontKey, custom){
+  const fr = getFront(frontKey, custom);
+  return fr.players;
+}
+
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0;i<4;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+
+function notConfiguredNotice(){
+  alert("Online multiplayer needs a Firebase config \u2014 fill in the firebaseConfig object near the top of this file (see the comment above it for instructions).");
+}
+
+async function createRoom(role){
+  if(!FIREBASE_CONFIGURED){ notConfiguredNotice(); return; }
+  mode = 'online';
+  roomCode = genCode();
+  myRole = role;
+  roomMeta = { offenseTaken: role==='offense', defenseTaken: role==='defense' };
+  game = freshGame();
+  try{ await roomRef(roomCode).set({meta:roomMeta, game}); } catch(e){ alert('Could not reach the multiplayer server: ' + e.message); return; }
+  lsSetJSON(SESSION_KEY, {roomCode, role});
+  appScreen = 'waiting';
+  renderLobby();
+  attachRoomListener();
+}
+
+function startLocalGame(){
+  mode = 'local';
+  myRole = null;
+  roomCode = null;
+  roomMeta = null;
+  game = freshGame();
+  enterGame();
+}
+
+async function joinRoom(codeRaw){
+  if(!FIREBASE_CONFIGURED){ notConfiguredNotice(); return; }
+  const code = codeRaw.toUpperCase().trim();
+  if(code.length < 3){ showJoinError('Enter the room code your friend sent you.'); return; }
+  let roomObj;
+  try{ const snap = await roomRef(code).once('value'); roomObj = snap.val(); }
+  catch(e){ showJoinError("Couldn't reach the multiplayer server \u2014 check your connection."); return; }
+  if(!roomObj){ showJoinError("Couldn't find a room with that code."); return; }
+  let role;
+  if(!roomObj.meta.offenseTaken) role = 'offense';
+  else if(!roomObj.meta.defenseTaken) role = 'defense';
+  else { showJoinError('That room already has two players.'); return; }
+  roomObj.meta[role+'Taken'] = true;
+  await roomRef(code).set(roomObj);
+  mode = 'online'; roomCode = code; myRole = role; roomMeta = roomObj.meta; game = roomObj.game;
+  lsSetJSON(SESSION_KEY, {roomCode, role});
+  enterGame();
+}
+
+function showJoinError(msg){
+  const e = document.getElementById('lobbyError');
+  if(e) e.textContent = msg;
+}
+
+async function tryResumeSession(){
+  if(!FIREBASE_CONFIGURED) return false;
+  const sess = lsGetJSON(SESSION_KEY);
+  if(!sess) return false;
+  let roomObj;
+  try{ const snap = await roomRef(sess.roomCode).once('value'); roomObj = snap.val(); }
+  catch(e){ return false; }
+  if(!roomObj || !roomObj.meta[sess.role+'Taken']) return false;
+  mode = 'online';
+  roomCode = sess.roomCode; myRole = sess.role; roomMeta = roomObj.meta; game = roomObj.game;
+  if(roomMeta.offenseTaken && roomMeta.defenseTaken){
+    enterGame();
+  } else {
+    appScreen = 'waiting';
+    renderLobby();
+    attachRoomListener();
+  }
+  return true;
+}
+
+function leaveGame(){
+  detachRoomListener();
+  const wasLocal = mode === 'local';
+  myRole = null; mode = null; roomCode = null; roomMeta = null; game = null; lastAnimatedSeq = -1;
+  if(!wasLocal) lsSetJSON(SESSION_KEY, null);
+  appScreen = 'landing';
+  document.getElementById('gameArea').style.display = 'none';
+  document.getElementById('lobby').style.display = 'block';
+  renderLobby();
+}
+
+let roomListenerRef = null;
+function attachRoomListener(){
+  detachRoomListener();
+  if(!roomCode) return;
+  roomListenerRef = roomRef(roomCode);
+  roomListenerRef.on('value', snap=>{
+    const roomObj = snap.val();
+    if(!roomObj) return;
+    roomMeta = roomObj.meta;
+    if(appScreen === 'waiting'){
+      if(roomMeta.offenseTaken && roomMeta.defenseTaken){ game = roomObj.game; enterGame(); }
+      return;
+    }
+    if(appScreen === 'in-game'){
+      if(!game || roomObj.game.seq !== game.seq){ game = roomObj.game; render(); }
+    }
+  });
+}
+function detachRoomListener(){ if(roomListenerRef){ roomListenerRef.off(); roomListenerRef = null; } }
+
+async function writeGame(mutator){
+  const copy = JSON.parse(JSON.stringify(game));
+  mutator(copy);
+  copy.seq = (game.seq||0) + 1;
+  game = copy;
+  render();
+  if(mode === 'online'){
+    try{ await roomRef(roomCode).set({meta:roomMeta, game}); } catch(e){ /* will retry on next action */ }
+  }
+}
+
+function enterGame(){
+  appScreen = 'in-game';
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('gameArea').style.display = 'block';
+  document.getElementById('mastheadTag').innerHTML = mode === 'local'
+    ? 'local 2-player'
+    : 'room <b style="color:var(--gold)">'+roomCode+'</b>';
+  drawStaticField();
+  render();
+}
+
+/* ================= lobby UI ================= */
+
+const lobby = document.getElementById('lobby');
+
+function renderLobby(){
+  lobby.innerHTML = '';
+  if(appScreen === 'landing'){
+    const c = document.createElement('div'); c.className='lobby-card';
+    c.innerHTML = `
+      <h2>Play with a friend</h2>
+      <p class="sub">One of you creates a room, the other joins with the code.</p>
+      <div class="lobby-actions">
+        <button id="btnCreate">Create a room</button>
+        <button class="ghost" id="btnJoin">Join a room</button>
+      </div>
+      <div class="divider"></div>
+      <p class="sub">Sitting next to each other instead?</p>
+      <div class="lobby-actions">
+        <button class="ghost" id="btnLocal">Play locally on this device</button>
+      </div>
+      <div class="divider"></div>
+      <p class="sub">Want your own formations and plays?</p>
+      <div class="lobby-actions">
+        <button class="ghost" id="btnEditor">Create your own</button>
+      </div>`;
+    lobby.appendChild(c);
+    document.getElementById('btnCreate').onclick = ()=>{ appScreen='choose-role'; renderLobby(); };
+    document.getElementById('btnJoin').onclick = ()=>{ appScreen='join-code'; renderLobby(); };
+    document.getElementById('btnLocal').onclick = startLocalGame;
+    document.getElementById('btnEditor').onclick = ()=>{ appScreen='editor'; edInit(); renderLobby(); };
+    return;
+  }
+
+  if(appScreen === 'choose-role'){
+    const c = document.createElement('div'); c.className='lobby-card';
+    c.innerHTML = `<h2>Which side do you want?</h2><p class="sub">Your friend will automatically get the other one when they join.</p>`;
+    const pick = document.createElement('div'); pick.className='role-pick';
+    const bOff = document.createElement('button'); bOff.textContent='Offence';
+    const bDef = document.createElement('button'); bDef.className='ghost'; bDef.textContent='Defence';
+    bOff.onclick = ()=> createRoom('offense');
+    bDef.onclick = ()=> createRoom('defense');
+    pick.appendChild(bOff); pick.appendChild(bDef);
+    c.appendChild(pick);
+    const back = document.createElement('div'); back.className='footer-link';
+    back.innerHTML = '<a id="backLink">back</a>';
+    c.appendChild(back);
+    lobby.appendChild(c);
+    document.getElementById('backLink').onclick = ()=>{ appScreen='landing'; renderLobby(); };
+    return;
+  }
+
+  if(appScreen === 'waiting'){
+    const c = document.createElement('div'); c.className='lobby-card';
+    c.innerHTML = `
+      <h2>Send this code to your friend</h2>
+      <div class="code-display" id="codeDisplay" title="Tap to copy">${roomCode}</div>
+      <p class="code-hint">Waiting for them to join${roomMeta && roomMeta.offenseTaken ? ' as defence' : ' as offence'}\u2026 <span class="pulse">\u25CF</span></p>
+      <div class="footer-link"><a id="cancelLink">cancel</a></div>`;
+    lobby.appendChild(c);
+    document.getElementById('codeDisplay').onclick = ()=>{
+      if(navigator.clipboard) navigator.clipboard.writeText(roomCode).catch(()=>{});
+    };
+    document.getElementById('cancelLink').onclick = ()=>{ detachRoomListener(); appScreen='landing'; renderLobby(); };
+    return;
+  }
+
+  if(appScreen === 'join-code'){
+    const c = document.createElement('div'); c.className='lobby-card';
+    c.innerHTML = `
+      <h2>Enter the room code</h2>
+      <p class="sub">Whatever your friend sent you.</p>
+      <input class="code-input" id="codeInput" maxlength="4" autocomplete="off" autocapitalize="characters">
+      <div class="lobby-error" id="lobbyError"></div>
+      <div class="lobby-actions">
+        <button id="btnGo">Join</button>
+        <button class="ghost" id="backLink2">back</button>
+      </div>`;
+    lobby.appendChild(c);
+    const input = document.getElementById('codeInput');
+    input.focus();
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') go(); });
+    document.getElementById('btnGo').onclick = go;
+    document.getElementById('backLink2').onclick = ()=>{ appScreen='landing'; renderLobby(); };
+    function go(){ joinRoom(input.value); }
+    return;
+  }
+
+  if(appScreen === 'editor'){
+    renderEditorScreen();
+    return;
+  }
+}
+
+/* ================= svg field (identical mechanics to the local build) ================= */
+
+const PX_PER_YARD = 6.2;
+const BASE_Y = 680;
+function losY(ballOn){ return BASE_Y - (ballOn/100)*620; }
+
+const svgNS = "http://www.w3.org/2000/svg";
+const field = document.getElementById('field');
+
+function el(name, attrs){
+  const e = document.createElementNS(svgNS, name);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function drawStaticField(){
+  field.innerHTML = '';
+  field.appendChild(el('rect',{x:0,y:0,width:640,height:760,fill:'var(--board)'}));
+  field.appendChild(el('rect',{x:0,y:0,width:640,height:60,fill:'var(--board-line)'}));
+  field.appendChild(el('rect',{x:0,y:700,width:640,height:60,fill:'var(--board-line)'}));
+  field.appendChild(el('line',{x1:40,y1:0,x2:40,y2:760,stroke:'var(--chalk-dim)','stroke-width':1.5}));
+  field.appendChild(el('line',{x1:600,y1:0,x2:600,y2:760,stroke:'var(--chalk-dim)','stroke-width':1.5}));
+  for(let y=10;y<100;y+=10){
+    const yy = losY(y);
+    field.appendChild(el('line',{x1:40,y1:yy,x2:600,y2:yy,stroke:'var(--hash)','stroke-width':1}));
+    const label = Math.min(y,100-y);
+    [90,550].forEach(lx=>{
+      const t = el('text',{x:lx,y:yy+4,fill:'var(--hash)','font-size':13,'font-family':"'Space Grotesk',sans-serif",'text-anchor':'middle'});
+      t.textContent = label;
+      field.appendChild(t);
+    });
+  }
+  for(let y=2;y<100;y+=2){
+    const yy = losY(y);
+    [260,380].forEach(hx=>{
+      field.appendChild(el('line',{x1:hx,y1:yy,x2:hx+8,y2:yy,stroke:'var(--hash)','stroke-width':1}));
+    });
+  }
+  field.appendChild(el('g',{id:'dynamic'}));
+}
+
+function clearDynamic(){ const dyn = document.getElementById('dynamic'); dyn.innerHTML=''; return dyn; }
+
+function drawLineMarker(dyn, y, color, dashed){
+  const attrs = {x1:40,y1:y,x2:600,y2:y,stroke:color,'stroke-width':2};
+  if(dashed) attrs['stroke-dasharray'] = '6,5';
+  dyn.appendChild(el('line', attrs));
+}
+
+function drawOffense(dyn, formKey, formCustom, ly, animate){
+  const pts = offensePoints(formKey, formCustom);
+  pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, ly+p.y, i===2?'square':'X', 'var(--gold)', animate, i)));
+}
+function drawDefense(dyn, frontKey, frontCustom, ly, animate){
+  const pts = defensePoints(frontKey, frontCustom);
+  if(showPosLabels){
+    const labels = computePositionLabels(pts);
+    pts.forEach((p,i)=> dyn.appendChild(makeLabelMarker(p.x, ly+p.y, labels[i]||p.role||'?', 'var(--brick)', animate, i)));
+  } else {
+    pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, ly+p.y, 'O', 'var(--brick)', animate, i)));
+  }
+}
+
+function makeMarker(x,y,shape,color,animate,idx){
+  const g = el('g',{});
+  if(shape==='X'){ const s=7;
+    g.appendChild(el('line',{x1:x-s,y1:y-s,x2:x+s,y2:y+s,stroke:color,'stroke-width':2}));
+    g.appendChild(el('line',{x1:x-s,y1:y+s,x2:x+s,y2:y-s,stroke:color,'stroke-width':2}));
+  } else if(shape==='square'){ const s=8;
+    g.appendChild(el('rect',{x:x-s,y:y-s,width:s*2,height:s*2,fill:'none',stroke:color,'stroke-width':2}));
+  } else {
+    g.appendChild(el('circle',{cx:x,cy:y,r:9,fill:'none',stroke:color,'stroke-width':2}));
+  }
+  if(animate){
+    g.classList.add('marker-pop');
+    g.style.transformOrigin = x+'px '+y+'px';
+    g.style.transformBox = 'fill-box';
+    g.style.opacity = '0';
+    g.style.transform = 'scale(0.2)';
+    g.style.transitionDelay = (idx*22)+'ms';
+    requestAnimationFrame(()=> requestAnimationFrame(()=>{ g.style.opacity='1'; g.style.transform='scale(1)'; }));
+  }
+  return g;
+}
+
+function makeLabelMarker(x,y,text,color,animate,idx){
+  const g = el('g',{});
+  const t = el('text',{x,y:y+4,'text-anchor':'middle','font-size':11,'font-family':"'Space Grotesk',sans-serif",'font-weight':700,fill:color});
+  t.textContent = text;
+  g.appendChild(t);
+  if(animate){
+    g.classList.add('marker-pop');
+    g.style.transformOrigin = x+'px '+y+'px';
+    g.style.transformBox = 'fill-box';
+    g.style.opacity = '0';
+    g.style.transform = 'scale(0.2)';
+    g.style.transitionDelay = (idx*22)+'ms';
+    requestAnimationFrame(()=> requestAnimationFrame(()=>{ g.style.opacity='1'; g.style.transform='scale(1)'; }));
+  }
+  return g;
+}
+
+function computePositionLabels(players){
+  const labels = new Array(players.length).fill('');
+  const byRole = {DL:[],LB:[],CB:[],S:[]};
+  players.forEach((p,i)=>{ if(byRole[p.role]) byRole[p.role].push(i); });
+
+  const dl = byRole.DL.slice().sort((a,b)=>players[a].x-players[b].x);
+  if(dl.length===1) labels[dl[0]]='NT';
+  else dl.forEach((idx,pos)=>{ labels[idx] = (pos===0||pos===dl.length-1) ? 'DE' : 'DT'; });
+
+  const lb = byRole.LB.slice().sort((a,b)=>players[a].x-players[b].x);
+  if(lb.length===1) labels[lb[0]]='MLB';
+  else lb.forEach((idx,pos)=>{ labels[idx] = (pos===0||pos===lb.length-1) ? 'OLB' : 'MLB'; });
+
+  const cb = byRole.CB.slice().sort((a,b)=> Math.abs(players[a].x-320)-Math.abs(players[b].x-320));
+  cb.forEach((idx,pos)=>{ labels[idx] = pos < cb.length-2 ? 'NB' : 'CB'; });
+
+  const s = byRole.S.slice().sort((a,b)=> players[a].y-players[b].y);
+  s.forEach((idx,pos)=>{ labels[idx] = pos===0 ? 'FS' : 'SS'; });
+
+  return labels;
+}
+
+function easeOutCubic(t){ return 1 - Math.pow(1-t, 3); }
+function easeInCubic(t){ return t*t*t; }
+function quadPoint(p0, c, p1, t){
+  const mt = 1-t;
+  return { x: mt*mt*p0.x + 2*mt*t*c.x + t*t*p1.x, y: mt*mt*p0.y + 2*mt*t*c.y + t*t*p1.y };
+}
+function setAttrs(el2,attrs){ for(const k in attrs) el2.setAttribute(k, attrs[k]); }
+
+function drawPlayResult(dyn, ly, animate){
+  const r = game.lastResult;
+  const play = getPlay(game.offPlayKey, game.offPlayCustom);
+  const startX = 320, startY = ly;
+  const t = Math.min(r.yards/8,1);
+  const finalX = startX + (play.xTarget - startX)*t;
+  const finalY = ly - r.yards*PX_PER_YARD;
+
+  const bend = play.bend;
+  const control = {
+    x: startX + (finalX - startX) * (0.35 + bend*0.35),
+    y: startY - (startY - finalY) * (0.15 + (1-bend)*0.35),
+  };
+  const p0 = {x:startX,y:startY}, p1 = {x:finalX,y:finalY};
+
+  const ball = makeMarker(startX, startY, 'X', 'var(--gold)', false, 0);
+  const ballLines = ball.querySelectorAll('line');
+  ballLines.forEach(l=> l.setAttribute('stroke-width', 3));
+  const ballOffsets = Array.from(ballLines).map(l=>({
+    x1:parseFloat(l.getAttribute('x1')), y1:parseFloat(l.getAttribute('y1')),
+    x2:parseFloat(l.getAttribute('x2')), y2:parseFloat(l.getAttribute('y2')),
+  }));
+  dyn.appendChild(ball);
+
+  const frPlayers = defensePoints(game.defFrontKey, game.defFrontCustom);
+  const roleMatches = frPlayers.filter(p=>p.role===r.role);
+  const pool = roleMatches.length ? roleMatches : frPlayers;
+  let closest = pool[0], bestDist = Infinity;
+  pool.forEach(p=>{ const d = Math.abs(p.x - finalX); if(d < bestDist){ bestDist = d; closest = p; } });
+  const defStart = {x:closest.x, y: ly + closest.y};
+  const defMarker = makeMarker(defStart.x, defStart.y, 'O', 'var(--brick)', false, 0);
+  const defCircle = defMarker.querySelector('circle');
+  defCircle.setAttribute('stroke-width', 3);
+  dyn.appendChild(defMarker);
+
+  if(!animate){
+    const dx0 = finalX - startX, dy0 = finalY - startY;
+    ballLines.forEach((l,i)=> setAttrs(l, {x1:ballOffsets[i].x1+dx0, y1:ballOffsets[i].y1+dy0, x2:ballOffsets[i].x2+dx0, y2:ballOffsets[i].y2+dy0}));
+    defCircle.setAttribute('cx', finalX); defCircle.setAttribute('cy', finalY);
+    return;
+  }
+
+  const DURATION = 850, DEF_DELAY = 120;
+  const t0 = performance.now();
+  function frame(now){
+    const elapsed = now - t0;
+    const ballT = Math.min(elapsed/DURATION, 1);
+    const pos = quadPoint(p0, control, p1, easeOutCubic(ballT));
+    const dx0 = pos.x - startX, dy0 = pos.y - startY;
+    ballLines.forEach((l,i)=> setAttrs(l, {x1:ballOffsets[i].x1+dx0, y1:ballOffsets[i].y1+dy0, x2:ballOffsets[i].x2+dx0, y2:ballOffsets[i].y2+dy0}));
+
+    const defElapsed = Math.max(0, elapsed - DEF_DELAY);
+    const defT = Math.min(defElapsed/(DURATION - DEF_DELAY*0.6), 1);
+    const defEase = easeInCubic(defT);
+    const dcx = defStart.x + (finalX-defStart.x)*defEase, dcy = defStart.y + (finalY-defStart.y)*defEase;
+    defCircle.setAttribute('cx', dcx); defCircle.setAttribute('cy', dcy);
+
+    if(ballT < 1 || defT < 1){ requestAnimationFrame(frame); }
+    else{
+      const burst = el('circle',{cx:finalX,cy:finalY,r:3,fill:'none',stroke:'var(--chalk)'});
+      burst.classList.add('tackle-burst');
+      dyn.appendChild(burst);
+      setTimeout(()=>{ renderPanel(); }, 220);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
+
+/* ================= main render ================= */
+
+function render(){
+  if(!game) return;
+  const ly = losY(game.ballOn);
+  const dyn = clearDynamic();
+
+  drawLineMarker(dyn, ly, 'var(--chalk)', false);
+  if(game.ballOn < 100){
+    const distY = losY(Math.min(game.ballOn+game.distance,100));
+    drawLineMarker(dyn, distY, 'var(--gold)', true);
+  }
+
+  if(game.offKey) drawOffense(dyn, game.offKey, game.offCustom, ly, false);
+  if(game.defFrontKey) drawDefense(dyn, game.defFrontKey, game.defFrontCustom, ly, false);
+
+  let animateThisResult = false;
+  if(game.lastResult && game.seq !== lastAnimatedSeq){
+    animateThisResult = true;
+    lastAnimatedSeq = game.seq;
+  }
+  if(game.lastResult){
+    drawPlayResult(dyn, ly, animateThisResult);
+  }
+
+  document.getElementById('downBug').innerHTML =
+    `<b>${ordinal(game.down)} &amp; ${game.distance}</b><br>ball on ${Math.round(game.ballOn)}`;
+  const roleBug = document.getElementById('roleBug');
+  if(mode === 'local'){
+    roleBug.className = 'role-bug';
+    roleBug.innerHTML = `<b>local 2-player</b>`;
+  } else {
+    roleBug.className = 'role-bug' + (myRole==='defense' ? ' def' : '');
+    roleBug.innerHTML = `playing <b>${myRole==='offense'?'Offence':'Defence'}</b>`;
+  }
+
+  renderCallout(animateThisResult);
+  if(animateThisResult){
+    // hold off on the panel/result box until the animation finishes
+    const p = document.getElementById('panel');
+    p.style.opacity = '0';
+    requestAnimationFrame(()=>{ p.innerHTML=''; p.appendChild(note('Watching it unfold\u2026')); requestAnimationFrame(()=>{ p.style.opacity='1'; }); });
+  } else {
+    renderPanel();
+  }
+}
+
+function renderCallout(animating){
+  const callout = document.getElementById('phaseCallout');
+  if(animating){ callout.textContent = "Snap."; return; }
+
+  if(mode === 'local'){
+    const map = {
+      OFF_FORMATION: "Offence, set your formation.",
+      DEF_FRONT:     "Defence, match it.",
+      HANDOFF_TO_OFF:"Hand the device to the offence.",
+      OFF_PLAY:      "Offence, make the call.",
+      HANDOFF_TO_DEF:"Hand the device to the defence.",
+      DEF_CALL:      "Defence, make the call.",
+      RESULT:        game.lastResult && game.lastResult.touchdown ? "Touchdown!" : "Here's the read.",
+    };
+    callout.textContent = map[game.phase] || '';
+    return;
+  }
+
+  const mineTurn = isMyTurn();
+  const map = {
+    OFF_FORMATION: mineTurn ? "Set your formation." : "Offence is setting their formation.",
+    DEF_FRONT:     mineTurn ? "Match their formation." : "Defence is matching the formation.",
+    OFF_PLAY:      mineTurn ? "Make your play call." : "Offence is making the call.",
+    DEF_CALL:      mineTurn ? "Make your defensive call." : "Defence is making the call.",
+    RESULT:        game.lastResult && game.lastResult.touchdown ? "Touchdown!" : "Here's the read.",
+  };
+  callout.textContent = map[game.phase] || '';
+}
+
+function isMyTurn(){
+  const phase = game.phase;
+  if(phase==='OFF_FORMATION' || phase==='OFF_PLAY') return myRole==='offense';
+  if(phase==='DEF_FRONT' || phase==='DEF_CALL') return myRole==='defense';
+  return false;
+}
+
+/* ================= panel ================= */
+
+const panel = document.getElementById('panel');
+
+function renderPanel(){
+  panel.style.opacity = '0';
+  requestAnimationFrame(()=> buildPanel());
+}
+
+function buildPanel(){
+  panel.innerHTML = '';
+  const phase = game.phase;
+
+  if(editorOverlay){
+    panel.appendChild(renderInlineEditor());
+    requestAnimationFrame(()=>{ panel.style.opacity = '1'; });
+    return;
+  }
+
+  if(mode === 'local'){
+    buildLocalPanel(phase);
+    requestAnimationFrame(()=>{ panel.style.opacity = '1'; });
+    return;
+  }
+
+  if(phase === 'OFF_FORMATION'){
+    if(myRole==='offense'){
+      panel.appendChild(choiceGrid(
+        "Choose a formation \u2014 the defence will see it and line up across from you.", false,
+        groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
+          k=>writeGame(g=>{ g.offKey=k; g.offCustom=null; g.phase='DEF_FRONT'; }),
+          item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
+        ()=> openEditor('offense','formation'), 'Create your own formation'
+      ));
+    } else {
+      panel.appendChild(waitingBox("Offence is choosing a formation\u2026"));
+    }
+  } else if(phase === 'DEF_FRONT'){
+    if(myRole==='defense'){
+      panel.appendChild(choiceGrid(
+        "Choose a front to match the offence's personnel.", true,
+        groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
+          k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
+          item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; })),
+        ()=> openEditor('defense','formation'), 'Create your own front'
+      ));
+    } else {
+      panel.appendChild(waitingBox("Defence is matching your formation\u2026"));
+    }
+  } else if(phase === 'OFF_PLAY'){
+    if(myRole==='offense'){
+      const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
+      const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
+      panel.appendChild(choiceGrid(
+        "Hidden from the defence \u2014 pick your play.", false,
+        groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
+        ()=> openEditor('offense','play'), 'Create your own play',
+        text=> handleTypedPlay(text, onPick, onPickCustom)
+      ));
+    } else {
+      panel.appendChild(waitingBox("Offence is making their play call\u2026"));
+    }
+  } else if(phase === 'DEF_CALL'){
+    if(myRole==='defense'){
+      const onPick = k=>writeGame(g=>{ g.defCallKey=k; g.defCallCustom=null; resolvePlay(g); g.phase='RESULT'; });
+      const onPickCustom = item=>writeGame(g=>{ g.defCallKey=CUSTOM; g.defCallCustom=item; resolvePlay(g); g.phase='RESULT'; });
+      panel.appendChild(choiceGrid(
+        "Hidden from the offence \u2014 make your call.", true,
+        groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPick, onPickCustom),
+        ()=> openEditor('defense','play'), 'Create your own call',
+        text=> handleTypedCall(text, onPick, onPickCustom)
+      ));
+    } else {
+      panel.appendChild(waitingBox("Defence is making their call\u2026"));
+    }
+  } else if(phase === 'RESULT'){
+    panel.appendChild(resultBox());
+  }
+
+  requestAnimationFrame(()=>{ panel.style.opacity = '1'; });
+}
+
+function buildLocalPanel(phase){
+  if(phase === 'OFF_FORMATION'){
+    panel.appendChild(choiceGrid(
+      "Offence: choose a formation \u2014 the defence will see it and line up across from you.", false,
+      groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
+        k=>writeGame(g=>{ g.offKey=k; g.offCustom=null; g.phase='DEF_FRONT'; }),
+        item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
+      ()=> openEditor('offense','formation'), 'Create your own formation'
+    ));
+
+  } else if(phase === 'DEF_FRONT'){
+    panel.appendChild(choiceGrid(
+      "Defence: choose a front to match the offence's personnel.", true,
+      groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
+        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='HANDOFF_TO_OFF'; }),
+        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='HANDOFF_TO_OFF'; })),
+      ()=> openEditor('defense','formation'), 'Create your own front'
+    ));
+
+  } else if(phase === 'HANDOFF_TO_OFF'){
+    panel.appendChild(handoffBox("Pass the device to the offence.", "Reveal play options", ()=>{
+      writeGame(g=>{ g.phase='OFF_PLAY'; });
+    }));
+
+  } else if(phase === 'OFF_PLAY'){
+    const onPickOff = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='HANDOFF_TO_DEF'; });
+    const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='HANDOFF_TO_DEF'; });
+    panel.appendChild(choiceGrid(
+      "Hidden from the defence \u2014 pick your play.", false,
+      groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom),
+      ()=> openEditor('offense','play'), 'Create your own play',
+      text=> handleTypedPlay(text, onPickOff, onPickOffCustom)
+    ));
+
+  } else if(phase === 'HANDOFF_TO_DEF'){
+    panel.appendChild(handoffBox("Pass the device to the defence.", "Reveal defensive calls", ()=>{
+      writeGame(g=>{ g.phase='DEF_CALL'; });
+    }));
+
+  } else if(phase === 'DEF_CALL'){
+    const onPickDef = k=>writeGame(g=>{ g.defCallKey=k; g.defCallCustom=null; resolvePlay(g); g.phase='RESULT'; });
+    const onPickDefCustom = item=>writeGame(g=>{ g.defCallKey=CUSTOM; g.defCallCustom=item; resolvePlay(g); g.phase='RESULT'; });
+    panel.appendChild(choiceGrid(
+      "Hidden from the offence \u2014 make your call.", true,
+      groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPickDef, onPickDefCustom),
+      ()=> openEditor('defense','play'), 'Create your own call',
+      text=> handleTypedCall(text, onPickDef, onPickDefCustom)
+    ));
+
+  } else if(phase === 'RESULT'){
+    panel.appendChild(resultBox());
+  }
+}
+
+function handoffBox(msg, btnLabel, onGo){
+  const wrap = document.createElement('div'); wrap.className='waiting';
+  wrap.innerHTML = `<div class="icon">\u21C4</div><p>${msg}</p>`;
+  const btn = document.createElement('button'); btn.style.marginTop='14px';
+  btn.textContent = btnLabel;
+  btn.onclick = onGo;
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+function computeOffPersonnel(skillArr){
+  let backs=0, tes=0;
+  skillArr.forEach(p=>{ if(p.label==='TE') tes++; else if(p.label==='RB'||p.label==='FB'||p.label==='HB') backs++; });
+  return `${backs}${tes}`;
+}
+function offPersonnelOf(key, item, isCustom){
+  return isCustom ? (item.personnel || '11') : computeOffPersonnel(item.skill);
+}
+function defPersonnelOf(key, item, isCustom){
+  let dl=0, lb=0;
+  item.players.forEach(p=>{ if(p.role==='DL') dl++; else if(p.role==='LB') lb++; });
+  return `${dl}-${lb}`;
+}
+
+function groupsByCategory(builtinDict, customList, categoryMap, onPick, onPickCustom){
+  return Object.keys(categoryMap).map(catKey=>{
+    const entries=[];
+    Object.keys(builtinDict).forEach(k=>{ if(builtinDict[k].category===catKey) entries.push({item:builtinDict[k],isCustom:false,onClick:()=>onPick(k)}); });
+    (customList||[]).forEach(item=>{ if(item.category===catKey) entries.push({item,isCustom:true,onClick:()=>onPickCustom(item)}); });
+    return {heading:categoryMap[catKey], entries};
+  }).filter(g=>g.entries.length);
+}
+
+function groupsByPersonnel(builtinDict, customList, personnelFn, onPick, onPickCustom){
+  const map = {};
+  Object.keys(builtinDict).forEach(k=>{
+    const label = personnelFn(k,builtinDict[k],false);
+    (map[label] = map[label]||[]).push({item:builtinDict[k],isCustom:false,onClick:()=>onPick(k)});
+  });
+  (customList||[]).forEach(item=>{
+    const label = personnelFn(item.id,item,true);
+    (map[label] = map[label]||[]).push({item,isCustom:true,onClick:()=>onPickCustom(item)});
+  });
+  return Object.keys(map).sort().map(label=>({heading:label+' personnel', entries:map[label]}));
+}
+
+function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler){
+  const wrap = document.createElement('div');
+  const p = document.createElement('div'); p.className='prompt'; p.innerHTML = promptText;
+  wrap.appendChild(p);
+
+  if(typedHandler){
+    const typedWrap = document.createElement('div'); typedWrap.className='typed-call-row';
+    typedWrap.innerHTML = `<input class="ed-input" type="text" placeholder='Or type it in\u2026 e.g. "cover 3 buzz"' maxlength="40"><button type="button">Run it</button>`;
+    const inp = typedWrap.querySelector('input');
+    const btn = typedWrap.querySelector('button');
+    const go = ()=>{ const v = inp.value.trim(); if(v) typedHandler(v); };
+    btn.onclick = go;
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter') go(); });
+    wrap.appendChild(typedWrap);
+  }
+
+  groups.forEach(grp=>{
+    if(grp.heading){ const h=document.createElement('div'); h.className='cat-heading'; h.textContent=grp.heading; wrap.appendChild(h); }
+    const grid = document.createElement('div'); grid.className='choice-grid';
+    grp.entries.forEach(e=>{
+      const btn = document.createElement('button');
+      btn.className = 'choice-btn' + (isDef ? ' def' : '');
+      btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.item.note||''}</span>`;
+      btn.onclick = e.onClick;
+      grid.appendChild(btn);
+    });
+    wrap.appendChild(grid);
+  });
+  if(onCreateNew){
+    const cbtn = document.createElement('button');
+    cbtn.className = 'create-new-btn';
+    cbtn.textContent = '+ ' + createLabel;
+    cbtn.onclick = onCreateNew;
+    wrap.appendChild(cbtn);
+  }
+  return wrap;
+}
+
+function waitingBox(msg){
+  const w = document.createElement('div'); w.className='waiting';
+  w.innerHTML = `<div class="icon pulse">\u25CF</div><p>${msg}</p>`;
+  return w;
+}
+
+function note(msg){ const d = document.createElement('div'); d.className='prompt'; d.textContent = msg; return d; }
+
+function resultBox(){
+  const r = game.lastResult;
+  const wrap = document.createElement('div'); wrap.className='result-box';
+  if(r.touchdown) wrap.innerHTML += `<div class="td">TOUCHDOWN</div>`;
+  wrap.innerHTML += `<div class="yards">${r.yards===0 ? 'No gain' : (r.yards+' yard'+(r.yards===1?'':'s'))}</div>`;
+  wrap.innerHTML += `<div class="story">${r.text}</div>`;
+  const meta = document.createElement('div'); meta.className='prompt';
+  const formObj = getFormation(game.offKey, game.offCustom);
+  const frontObj = getFront(game.defFrontKey, game.defFrontCustom);
+  const playObj = getPlay(game.offPlayKey, game.offPlayCustom);
+  const callObj = getCall(game.defCallKey, game.defCallCustom);
+  meta.innerHTML = `<em>${formObj.name}</em> vs <em>${frontObj.name}</em> \u2014 ${playObj.name} into ${callObj.name}.`;
+  wrap.appendChild(meta);
+  const btn = document.createElement('button'); btn.className='primary-btn'; btn.style.marginTop='10px';
+  btn.textContent = r.driveOver ? 'Start next drive' : 'Next play';
+  btn.onclick = ()=>{
+    writeGame(g=>{
+      g.offKey=null; g.defFrontKey=null; g.offPlayKey=null; g.defCallKey=null; g.lastResult=null;
+      g.offCustom=null; g.defFrontCustom=null; g.offPlayCustom=null; g.defCallCustom=null;
+      g.phase='OFF_FORMATION';
+    });
+  };
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+function resolvePlay(g){
+  const o = computeOutcome(g);
+  let yards = o.yards;
+  let newBallOn = g.ballOn + yards;
+  let touchdown = false, driveOver = false;
+
+  if(newBallOn >= 100){
+    touchdown = true; driveOver = true; newBallOn = 100;
+  } else if(yards >= g.distance){
+    g.down = 1; g.distance = Math.min(10, 100-newBallOn);
+  } else {
+    g.down += 1; g.distance -= yards;
+    if(g.distance < 1) g.distance = 1;
+    if(g.down > 4){ driveOver = true; newBallOn = 25; g.down = 1; g.distance = 10; }
+  }
+  g.ballOn = newBallOn;
+  g.lastResult = { yards:o.yards, text:o.text, role:o.role, touchdown, driveOver };
+  if(driveOver && !touchdown) g.lastResult.text += " Turnover on downs \u2014 fresh drive.";
+}
+
+/* ================= editor ================= */
+
+const EDITOR_LOS_Y = 480;
+let ed = { side:'offense', type:'formation', points:[], backdropKey:'singleback', arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category:'run', editingId:null };
+
+function edInit(){
+  ed = { side:'offense', type:'formation', points:[], backdropKey:'singleback',
+    arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category:'run', personnel:'11', editingId:null };
+  ed.points = edDefaultPoints('offense');
+}
+
+function edDefaultPoints(side){
+  if(side==='offense') return offensePoints('singleback', null).map(p=>({x:p.x, y:EDITOR_LOS_Y+p.y}));
+  return defensePoints('base43', null).map(p=>({x:p.x, y:EDITOR_LOS_Y+p.y, role:p.role}));
+}
+
+function roleForDepth(y){
+  const upfield = EDITOR_LOS_Y - y;
+  if(upfield < 20) return 'DL';
+  if(upfield < 55) return 'LB';
+  if(upfield < 85) return 'CB';
+  return 'S';
+}
+
+function edSwitchSide(side){
+  ed.side = side; ed.editingId = null;
+  if(ed.type==='formation'){ ed.points = edDefaultPoints(side); ed.personnel='11'; }
+  else { ed.category = side==='offense'?'run':'runD'; ed.arrowEnd={x:380,y:EDITOR_LOS_Y-90}; ed.backdropKey = side==='offense'?'singleback':'base43'; }
+  renderEditorScreen();
+}
+function edSwitchType(type){
+  ed.type = type; ed.editingId = null;
+  if(type==='formation'){ ed.points = edDefaultPoints(ed.side); }
+  else { ed.category = ed.side==='offense'?'run':'runD'; ed.arrowEnd={x:380,y:EDITOR_LOS_Y-90}; ed.backdropKey = ed.side==='offense'?'singleback':'base43'; }
+  renderEditorScreen();
+}
+function edCategoryPick(cat){ ed.category = cat; renderEditorScreen(); }
+function edBackdropChange(key){ ed.backdropKey = key; edRenderCanvas(); }
+
+function edLoadExisting(value, inline){
+  ed.editingId = null;
+  const isOff = ed.side==='offense';
+  const done = ()=> inline ? renderPanel() : renderEditorScreen();
+  if(!value){
+    if(ed.type==='formation'){ ed.points = edDefaultPoints(ed.side); ed.personnel='11'; }
+    else { ed.arrowEnd={x:380,y:EDITOR_LOS_Y-90}; ed.category = isOff?'run':'runD'; }
+    done(); return;
+  }
+  if(value.startsWith('built:')){
+    const key = value.slice(6);
+    if(ed.type==='formation'){
+      if(isOff){
+        ed.points = offensePoints(key,null).map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y}));
+        ed.personnel = computeOffPersonnel(formations[key].skill);
+      } else {
+        ed.points = defensePoints(key,null).map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y,role:p.role}));
+      }
+    } else {
+      const src = isOff ? plays[key] : calls[key];
+      ed.category = src.category;
+      ed.arrowEnd = isOff ? { x:src.xTarget, y: EDITOR_LOS_Y - (src.bend*180+30) } : {x:380,y:EDITOR_LOS_Y-90};
+    }
+    done(); return;
+  }
+  const id = value.slice(7);
+  if(ed.type==='formation'){
+    const list = isOff?customOffFormations:customDefFormations;
+    const item = list.find(x=>x.id===id);
+    if(item){
+      ed.editingId=id; ed.points = item.players.map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y,role:p.role}));
+      if(isOff) ed.personnel = item.personnel || '11';
+    }
+  } else {
+    const list = isOff?customOffPlays:customDefCalls;
+    const item = list.find(x=>x.id===id);
+    if(item){
+      ed.editingId=id; ed.category=item.category;
+      ed.arrowEnd = isOff ? { x:item.xTarget, y: EDITOR_LOS_Y - (item.bend*180+30) } : (item.arrowEnd || {x:380,y:EDITOR_LOS_Y-90});
+    }
+  }
+  done();
+}
+
+function edFlip(){
+  if(ed.type==='formation'){ ed.points = ed.points.map(p=> ({...p, x: 640-p.x})); }
+  else { ed.arrowEnd = {...ed.arrowEnd, x: 640-ed.arrowEnd.x}; }
+  edRenderCanvas();
+}
+
+const PERSONNEL_OPTIONS = ['00','01','02','10','11','12','13','20','21','22','23','31','32'];
+function personnelSelectHtml(selected){
+  return '<select class="ed-select" id="edPersonnel">' +
+    PERSONNEL_OPTIONS.map(o=>`<option value="${o}" ${selected===o?'selected':''}>${o} personnel</option>`).join('') +
+    '</select>';
+}
+
+async function edPersist(){
+  const nameInput = document.getElementById('edName');
+  const name = (nameInput && nameInput.value.trim()) || 'Untitled';
+  const isOff = ed.side==='offense';
+  if(ed.type==='formation'){
+    const players = ed.points.map(p=> isOff
+      ? {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y)}
+      : {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y), role: roleForDepth(p.y)});
+    const item = { id: ed.editingId || genId(), name, players };
+    if(isOff){
+      const personnelInput = document.getElementById('edPersonnel');
+      item.personnel = (personnelInput && personnelInput.value) || '11';
+    }
+    const key = isOff ? CUSTOM_STORE_KEYS.offForm : CUSTOM_STORE_KEYS.defForm;
+    let list = (isOff ? customOffFormations : customDefFormations).filter(x=>x.id!==item.id);
+    list.push(item);
+    if(isOff) customOffFormations = list; else customDefFormations = list;
+    await saveCustomList(key, list);
+  } else if(isOff){
+    const dx = ed.arrowEnd.x - 320;
+    const bend = Math.max(0.1, Math.min(0.9, Math.abs(dx)/300));
+    const item = { id: ed.editingId || genId(), name, category: ed.category,
+      note: "A play you designed.", xTarget: Math.round(ed.arrowEnd.x), bend };
+    let list = customOffPlays.filter(x=>x.id!==item.id); list.push(item);
+    customOffPlays = list;
+    await saveCustomList(CUSTOM_STORE_KEYS.offPlay, list);
+  } else {
+    const item = { id: ed.editingId || genId(), name, category: ed.category,
+      note: "A call you designed.", arrowEnd: {x:Math.round(ed.arrowEnd.x), y:Math.round(ed.arrowEnd.y)} };
+    let list = customDefCalls.filter(x=>x.id!==item.id); list.push(item);
+    customDefCalls = list;
+    await saveCustomList(CUSTOM_STORE_KEYS.defCall, list);
+  }
+}
+
+async function edPersistDelete(){
+  if(!ed.editingId) return;
+  const isOff = ed.side==='offense';
+  if(ed.type==='formation'){
+    if(isOff){ customOffFormations = customOffFormations.filter(x=>x.id!==ed.editingId); await saveCustomList(CUSTOM_STORE_KEYS.offForm, customOffFormations); }
+    else { customDefFormations = customDefFormations.filter(x=>x.id!==ed.editingId); await saveCustomList(CUSTOM_STORE_KEYS.defForm, customDefFormations); }
+  } else if(isOff){
+    customOffPlays = customOffPlays.filter(x=>x.id!==ed.editingId); await saveCustomList(CUSTOM_STORE_KEYS.offPlay, customOffPlays);
+  } else {
+    customDefCalls = customDefCalls.filter(x=>x.id!==ed.editingId); await saveCustomList(CUSTOM_STORE_KEYS.defCall, customDefCalls);
+  }
+}
+
+async function edSave(){ await edPersist(); appScreen = 'landing'; renderLobby(); }
+async function edDelete(){ await edPersistDelete(); appScreen = 'landing'; renderLobby(); }
+
+async function edSaveInline(){ await edPersist(); editorOverlay = null; renderPanel(); }
+async function edDeleteInline(){ await edPersistDelete(); editorOverlay = null; renderPanel(); }
+function edCancelInline(){ editorOverlay = null; renderPanel(); }
+
+function openEditor(side, type){
+  editorOverlay = { side, type };
+  ed = { side, type, points:[], backdropKey: side==='offense'?'singleback':'base43',
+    arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category: type==='play' ? (side==='offense'?'run':'runD') : null,
+    personnel:'11', editingId:null };
+  if(type==='formation') ed.points = edDefaultPoints(side);
+  renderPanel();
+}
+
+function renderInlineEditor(){
+  const isOff = ed.side==='offense';
+  const wrap = document.createElement('div'); wrap.style.textAlign='left';
+
+  const builtinDict = ed.type==='formation' ? (isOff?formations:fronts) : (isOff?plays:calls);
+  const customListForDropdown = ed.type==='formation' ? (isOff?customOffFormations:customDefFormations) : (isOff?customOffPlays:customDefCalls);
+  let existingOptionsHtml = `<option value="">${ed.type==='formation'?'Blank / new':'New'}</option><optgroup label="Start from a built-in">`;
+  Object.keys(builtinDict).forEach(k=> existingOptionsHtml += `<option value="built:${k}">${builtinDict[k].name}</option>`);
+  existingOptionsHtml += '</optgroup>';
+  if(customListForDropdown.length){
+    existingOptionsHtml += '<optgroup label="Yours">';
+    customListForDropdown.forEach(item=> existingOptionsHtml += `<option value="custom:${item.id}" ${ed.editingId===item.id?'selected':''}>${item.name}</option>`);
+    existingOptionsHtml += '</optgroup>';
+  }
+
+  let backdropOptionsHtml = '';
+  if(ed.type==='play'){
+    const backdropDict = isOff ? formations : fronts;
+    Object.keys(backdropDict).forEach(k=> backdropOptionsHtml += `<option value="${k}" ${ed.backdropKey===k?'selected':''}>${backdropDict[k].name}</option>`);
+    (isOff?customOffFormations:customDefFormations).forEach(item=> backdropOptionsHtml += `<option value="custom:${item.id}" ${ed.backdropKey==='custom:'+item.id?'selected':''}>${item.name}</option>`);
+  }
+
+  let catButtonsHtml = '';
+  if(ed.type==='play'){
+    const catOptions = isOff ? PLAY_CATEGORIES : CALL_CATEGORIES;
+    catButtonsHtml = '<div class="cat-btn-row">' + Object.keys(catOptions).map(k=>
+      `<button type="button" class="cat-btn ${ed.category===k?'active':''}" data-cat="${k}">${catOptions[k]}</button>`
+    ).join('') + '</div>';
+  }
+
+  const existingName = ed.editingId ? ((customListForDropdown.find(x=>x.id===ed.editingId)||{}).name || '') : '';
+  const label = (isOff?'Offence':'Defence') + ' \u00b7 ' + (ed.type==='formation' ? (isOff?'formation':'front') : (isOff?'play':'call'));
+
+  wrap.innerHTML = `
+    <div class="prompt"><em>Creating a ${label}</em></div>
+    <div class="ed-toolbar">
+      <select class="ed-select" id="edExisting">${existingOptionsHtml}</select>
+      ${ed.type==='play' ? `<select class="ed-select" id="edBackdrop">${backdropOptionsHtml}</select>` : ''}
+      ${ed.type==='formation' && isOff ? personnelSelectHtml(ed.personnel) : ''}
+      <input class="ed-input" id="edName" placeholder="Name it\u2026" maxlength="40" value="${existingName}">
+    </div>
+    ${catButtonsHtml}
+    <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <p class="ed-hint">${ed.type==='formation'
+      ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.')
+      : 'Drag from the ball to draw where it goes \u2014 that\u2019s what the ' + (isOff?'play':'call') + ' does.'}</p>
+    <div class="ed-actions">
+      <button id="edFlipBtn" class="ghost">Flip</button>
+      ${!isOff ? `<button id="edLabelsBtn" class="ghost${showPosLabels?' active-toggle':''}">Position labels</button>` : ''}
+      <button id="edSaveBtn">Save</button>
+      ${ed.editingId ? '<button id="edDeleteBtn" class="ghost">Delete</button>' : ''}
+      <button id="edCancelBtn" class="ghost">Cancel</button>
+    </div>
+  `;
+
+  requestAnimationFrame(()=>{
+    document.getElementById('edExisting').onchange = e=> edLoadExisting(e.target.value, true);
+    if(ed.type==='play') document.getElementById('edBackdrop').onchange = e=> edBackdropChange(e.target.value);
+    document.querySelectorAll('.cat-btn').forEach(b=> b.onclick = ()=>{ ed.category=b.dataset.cat; renderPanel(); });
+    document.getElementById('edFlipBtn').onclick = edFlip;
+    if(document.getElementById('edLabelsBtn')) document.getElementById('edLabelsBtn').onclick = ()=>{ showPosLabels=!showPosLabels; refreshCurrentView(); };
+    document.getElementById('edSaveBtn').onclick = edSaveInline;
+    if(document.getElementById('edDeleteBtn')) document.getElementById('edDeleteBtn').onclick = edDeleteInline;
+    document.getElementById('edCancelBtn').onclick = edCancelInline;
+    edRenderCanvas();
+  });
+
+  return wrap;
+}
+
+function renderEditorScreen(){
+  const isOff = ed.side==='offense';
+  const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
+
+  const builtinDict = ed.type==='formation' ? (isOff?formations:fronts) : (isOff?plays:calls);
+  const customListForDropdown = ed.type==='formation' ? (isOff?customOffFormations:customDefFormations) : (isOff?customOffPlays:customDefCalls);
+  let existingOptionsHtml = `<option value="">${ed.type==='formation'?'Blank / new':'New'}</option><optgroup label="Start from a built-in">`;
+  Object.keys(builtinDict).forEach(k=> existingOptionsHtml += `<option value="built:${k}">${builtinDict[k].name}</option>`);
+  existingOptionsHtml += '</optgroup>';
+  if(customListForDropdown.length){
+    existingOptionsHtml += '<optgroup label="Yours">';
+    customListForDropdown.forEach(item=> existingOptionsHtml += `<option value="custom:${item.id}" ${ed.editingId===item.id?'selected':''}>${item.name}</option>`);
+    existingOptionsHtml += '</optgroup>';
+  }
+
+  let backdropOptionsHtml = '';
+  if(ed.type==='play'){
+    const backdropDict = isOff ? formations : fronts;
+    Object.keys(backdropDict).forEach(k=> backdropOptionsHtml += `<option value="${k}" ${ed.backdropKey===k?'selected':''}>${backdropDict[k].name}</option>`);
+    (isOff?customOffFormations:customDefFormations).forEach(item=> backdropOptionsHtml += `<option value="custom:${item.id}" ${ed.backdropKey==='custom:'+item.id?'selected':''}>${item.name}</option>`);
+  }
+
+  let catButtonsHtml = '';
+  if(ed.type==='play'){
+    const catOptions = isOff ? PLAY_CATEGORIES : CALL_CATEGORIES;
+    catButtonsHtml = '<div class="cat-btn-row">' + Object.keys(catOptions).map(k=>
+      `<button type="button" class="cat-btn ${ed.category===k?'active':''}" data-cat="${k}">${catOptions[k]}</button>`
+    ).join('') + '</div>';
+  }
+
+  const existingName = ed.editingId ? ((customListForDropdown.find(x=>x.id===ed.editingId)||{}).name || '') : '';
+
+  c.innerHTML = `
+    <h2 style="text-align:center;">Create your own</h2>
+    <div class="ed-toolbar">
+      <div class="seg-toggle" id="sideToggle">
+        <button data-side="offense" class="${isOff?'active':''}">Offence</button>
+        <button data-side="defense" class="${!isOff?'active def':''}">Defence</button>
+      </div>
+      <div class="seg-toggle" id="typeToggle">
+        <button data-type="formation" class="${ed.type==='formation'?'active':''}">Formation</button>
+        <button data-type="play" class="${ed.type==='play'?'active':''}">${isOff?'Play':'Call'}</button>
+      </div>
+    </div>
+    <div class="ed-toolbar">
+      <select class="ed-select" id="edExisting">${existingOptionsHtml}</select>
+      ${ed.type==='play' ? `<select class="ed-select" id="edBackdrop">${backdropOptionsHtml}</select>` : ''}
+      ${ed.type==='formation' && isOff ? personnelSelectHtml(ed.personnel) : ''}
+      <input class="ed-input" id="edName" placeholder="Name it\u2026" maxlength="40" value="${existingName}">
+    </div>
+    ${catButtonsHtml}
+    <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <p class="ed-hint">${ed.type==='formation'
+      ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.')
+      : 'Drag from the ball to draw where it goes \u2014 that\u2019s what the ' + (isOff?'play':'call') + ' does. The backdrop players are just for reference.'}</p>
+    <div class="ed-actions">
+      <button id="edFlipBtn" class="ghost">Flip</button>
+      ${!isOff ? `<button id="edLabelsBtn" class="ghost${showPosLabels?' active-toggle':''}">Position labels</button>` : ''}
+      <button id="edSaveBtn">Save</button>
+      ${ed.editingId ? '<button id="edDeleteBtn" class="ghost">Delete</button>' : ''}
+      <button id="edBackBtn" class="ghost">Back</button>
+    </div>
+  `;
+  lobby.appendChild(c);
+
+  document.querySelectorAll('#sideToggle button').forEach(b=> b.onclick = ()=> edSwitchSide(b.dataset.side));
+  document.querySelectorAll('#typeToggle button').forEach(b=> b.onclick = ()=> edSwitchType(b.dataset.type));
+  document.getElementById('edExisting').onchange = e=> edLoadExisting(e.target.value);
+  if(ed.type==='play') document.getElementById('edBackdrop').onchange = e=> edBackdropChange(e.target.value);
+  document.querySelectorAll('.cat-btn').forEach(b=> b.onclick = ()=> edCategoryPick(b.dataset.cat));
+  document.getElementById('edFlipBtn').onclick = edFlip;
+  if(document.getElementById('edLabelsBtn')) document.getElementById('edLabelsBtn').onclick = ()=>{ showPosLabels=!showPosLabels; refreshCurrentView(); };
+  document.getElementById('edSaveBtn').onclick = edSave;
+  if(document.getElementById('edDeleteBtn')) document.getElementById('edDeleteBtn').onclick = edDelete;
+  document.getElementById('edBackBtn').onclick = ()=>{ appScreen='landing'; renderLobby(); };
+
+  edRenderCanvas();
+}
+
+function edSvgPoint(evt, svg){
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return {x:320,y:400};
+  const loc = pt.matrixTransform(ctm.inverse());
+  return { x: Math.max(45,Math.min(595,loc.x)), y: Math.max(15,Math.min(745,loc.y)) };
+}
+
+function edStartDragPoint(evt, i, svg){
+  evt.preventDefault();
+  const startP = edSvgPoint(evt, svg);
+  const orig = ed.points[i];
+  const offX = orig.x - startP.x, offY = orig.y - startP.y;
+  const move = e=>{
+    const p = edSvgPoint(e, svg);
+    const nx = p.x+offX, ny = p.y+offY;
+    ed.points[i] = ed.side==='defense'
+      ? {...ed.points[i], x:nx, y:ny, role: roleForDepth(ny)}
+      : {...ed.points[i], x:nx, y:ny};
+    edRenderCanvas();
+  };
+  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+function edStartDragArrow(evt, svg){
+  evt.preventDefault();
+  const move = e=>{ ed.arrowEnd = edSvgPoint(e, svg); edRenderCanvas(); };
+  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+function edDraggableMarker(svg, x, y, shape, color, labelText, onDown){
+  const g = el('g',{});
+  const visual = labelText ? makeLabelMarker(x, y, labelText, color, false, 0) : makeMarker(x, y, shape, color, false, 0);
+  visual.style.pointerEvents = 'none';
+  g.appendChild(visual);
+  const hit = el('circle',{cx:x,cy:y,r:17,fill:'transparent'});
+  hit.style.cursor='grab';
+  hit.addEventListener('pointerdown', onDown);
+  g.appendChild(hit);
+  return g;
+}
+
+function edRenderCanvas(){
+  const svg = document.getElementById('edSvg');
+  if(!svg) return;
+  svg.innerHTML = '';
+  svg.appendChild(el('rect',{x:0,y:0,width:640,height:760,fill:'var(--board)'}));
+  svg.appendChild(el('line',{x1:40,y1:EDITOR_LOS_Y,x2:600,y2:EDITOR_LOS_Y,stroke:'var(--chalk-dim)','stroke-width':1,'stroke-dasharray':'4,4'}));
+  const isOff = ed.side==='offense';
+
+  if(ed.type==='formation'){
+    const labels = (!isOff && showPosLabels) ? computePositionLabels(ed.points) : null;
+    ed.points.forEach((p,i)=>{
+      const shape = isOff ? (i===2 ? 'square' : 'X') : 'O';
+      const color = isOff ? 'var(--gold)' : 'var(--brick)';
+      svg.appendChild(edDraggableMarker(svg, p.x, p.y, shape, color, labels?labels[i]:null, e=> edStartDragPoint(e, i, svg)));
+    });
+  } else {
+    let backdropPts = [];
+    try{
+      if(String(ed.backdropKey).startsWith('custom:')){
+        const id = ed.backdropKey.slice(7);
+        const list = isOff?customOffFormations:customDefFormations;
+        const item = list.find(x=>x.id===id);
+        if(item) backdropPts = item.players.map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y,role:p.role}));
+      } else {
+        backdropPts = isOff ? offensePoints(ed.backdropKey,null).map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y}))
+                             : defensePoints(ed.backdropKey,null).map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y,role:p.role}));
+      }
+    }catch(e){ backdropPts = []; }
+    const backdropLabels = (!isOff && showPosLabels) ? computePositionLabels(backdropPts) : null;
+    backdropPts.forEach((p,i)=>{
+      if(backdropLabels){
+        const g = makeLabelMarker(p.x,p.y, backdropLabels[i]||'?', 'var(--brick-dim)', false, 0);
+        g.style.opacity='0.55';
+        svg.appendChild(g);
+        return;
+      }
+      const shape = isOff ? (i===2 ? 'square' : 'X') : 'O';
+      const g = makeMarker(p.x,p.y, shape, isOff?'var(--gold-dim)':'var(--brick-dim)', false, 0);
+      g.style.opacity='0.55';
+      svg.appendChild(g);
+    });
+
+    const ballX=320, ballY=EDITOR_LOS_Y;
+    const ballColor = isOff ? 'var(--gold)' : 'var(--brick)';
+    svg.appendChild(el('line',{x1:ballX,y1:ballY,x2:ed.arrowEnd.x,y2:ed.arrowEnd.y,stroke:ballColor,'stroke-width':3}));
+    const ang = Math.atan2(ed.arrowEnd.y-ballY, ed.arrowEnd.x-ballX);
+    const ah = 10;
+    svg.appendChild(el('line',{x1:ed.arrowEnd.x,y1:ed.arrowEnd.y,x2:ed.arrowEnd.x-ah*Math.cos(ang-0.4),y2:ed.arrowEnd.y-ah*Math.sin(ang-0.4),stroke:ballColor,'stroke-width':3}));
+    svg.appendChild(el('line',{x1:ed.arrowEnd.x,y1:ed.arrowEnd.y,x2:ed.arrowEnd.x-ah*Math.cos(ang+0.4),y2:ed.arrowEnd.y-ah*Math.sin(ang+0.4),stroke:ballColor,'stroke-width':3}));
+
+    svg.appendChild(el('circle',{cx:ballX,cy:ballY,r:10,fill:ballColor,stroke:'var(--chalk)','stroke-width':1.5}));
+    svg.appendChild(el('circle',{cx:ed.arrowEnd.x,cy:ed.arrowEnd.y,r:8,fill:'none',stroke:ballColor,'stroke-width':2}));
+    const endHit = el('circle',{cx:ed.arrowEnd.x,cy:ed.arrowEnd.y,r:17,fill:'transparent'});
+    endHit.style.cursor='grab';
+    endHit.addEventListener('pointerdown', e=> edStartDragArrow(e, svg));
+    svg.appendChild(endHit);
+  }
+}
+
+/* ================= wire up footer + boot ================= */
+
+document.getElementById('restartLink').onclick = ()=>{
+  writeGame(g=>{
+    Object.assign(g, freshGame());
+  });
+};
+document.getElementById('leaveLink').onclick = leaveGame;
+document.getElementById('posToggle').onclick = ()=>{
+  showPosLabels = !showPosLabels;
+  document.getElementById('posToggle').classList.toggle('on', showPosLabels);
+  refreshCurrentView();
+};
+
+(async function boot(){
+  await loadAllCustom();
+  const resumed = await tryResumeSession();
+  if(!resumed){ appScreen = 'landing'; renderLobby(); }
+})();
+</script>
+</body>
+</html>
