@@ -336,10 +336,10 @@ const plays = {
   playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:380, bend:0.35, category:'playAction' },
   screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:500, bend:0.6,  category:'pass' },
   draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:350, bend:0.25, category:'run' },
-  deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:380, bend:0.2, category:'pass' },
-  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:560, bend:0.9, category:'playAction' },
+  deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:380, bend:0.2, category:'deep' },
+  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:560, bend:0.9, category:'run' },
 };
-const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action' };
+const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
 
 const calls = {
   runBlitz:    { name:"Run Blitz",     note:"Send an extra man to shoot a gap the instant the ball's snapped.", category:'blitz' },
@@ -440,6 +440,7 @@ const categoryMatrix = {
   run:        { runD:2,  passD:7, blitz:5 },
   pass:       { runD:8,  passD:3, blitz:5 },
   playAction: { runD:10, passD:4, blitz:2 },
+  deep:       { runD:9,  passD:2, blitz:16 },
 };
 const CALL_ROLE_BY_CATEGORY = { runD:'LB', passD:'CB', blitz:'DL' };
 
@@ -484,9 +485,10 @@ function resolveTypedEntry(text, builtinDict, customList){
 
 function guessOffCategory(text){
   const t = text.toLowerCase();
+  if(/deep|bomb|go route|nine route|shot downfield|seam|streak|fly route|four verticals|four vertical/.test(t)) return 'deep';
   if(/play[\s-]?action|\bpa\b|boot|bootleg|fake/.test(t)) return 'playAction';
-  if(/screen|quick|slant|fade|post|corner route|go route|deep|bomb|seam|dig|out\b|comeback|curl/.test(t)) return 'pass';
-  if(/run|sweep|draw|dive|power|counter|iso|zone read|option|toss|trap/.test(t)) return 'run';
+  if(/screen|quick|slant|fade|post|corner route|dig|out\b|comeback|curl/.test(t)) return 'pass';
+  if(/run|sweep|draw|dive|power|counter|iso|zone read|option|toss|trap|reverse|misdirection/.test(t)) return 'run';
   return 'pass';
 }
 function guessDefCategory(text){
@@ -497,7 +499,7 @@ function guessDefCategory(text){
   return 'passD';
 }
 
-const OFF_TYPED_DEFAULTS = { run:{xTarget:340,bend:0.3}, pass:{xTarget:460,bend:0.55}, playAction:{xTarget:390,bend:0.4} };
+const OFF_TYPED_DEFAULTS = { run:{xTarget:340,bend:0.3}, pass:{xTarget:460,bend:0.55}, playAction:{xTarget:390,bend:0.4}, deep:{xTarget:400,bend:0.25} };
 
 async function handleTypedPlay(text, onPick, onPickCustom){
   const match = resolveTypedEntry(text, plays, customOffPlays);
