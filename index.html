@@ -204,6 +204,21 @@
     background:var(--gold); color:#1a1509; border:none; font-weight:700; font-size:13px;
     padding:9px 14px; cursor:pointer; font-family:'Space Grotesk',sans-serif;
   }
+
+  .coach-tip{
+    border:1px dashed var(--gold-dim);
+    padding:10px 12px;
+    margin-bottom:14px;
+    font-family:'Kalam',cursive;
+    font-size:14px;
+    color:var(--chalk);
+  }
+  .coach-tip.def{ border-color:var(--brick-dim); }
+  .coach-tip .coach-label{
+    font-family:'Space Grotesk',sans-serif; font-size:10px; text-transform:uppercase;
+    letter-spacing:0.08em; color:var(--gold-dim); display:block; margin-bottom:4px;
+  }
+  .coach-tip.def .coach-label{ color:var(--brick-dim); }
 </style>
 </head>
 <body>
@@ -505,6 +520,46 @@ async function handleTypedCall(text, onPick, onPickCustom){
   customDefCalls.push(item);
   await saveCustomList(CUSTOM_STORE_KEYS.defCall, customDefCalls);
   onPickCustom(item);
+}
+
+/* ---- coach's recommendation, by down and distance ---- */
+
+function offCoachTip(down, distance, ballOn){
+  if(ballOn <= 10) return "Backed up near your own goal \u2014 keep it simple, avoid a disaster in the end zone.";
+  if(ballOn >= 90) return "Red zone \u2014 the field's shrunk, high-percentage plays beat a low-odds home run here.";
+  if(down === 4) return distance <= 2
+    ? "Fourth and short \u2014 this is a power down, put it in your best hands."
+    : "Fourth and long \u2014 you need a lot, but forcing a deep shot rarely ends well.";
+  if(down === 3){
+    if(distance <= 2) return "Third and short \u2014 stay on schedule, a safe run or quick throw does the job.";
+    if(distance <= 6) return "Third and manageable \u2014 call something you trust to move the sticks.";
+    return "Third and long \u2014 the defense expects a pass, but there's time to find a check-down first.";
+  }
+  if(down === 2){
+    if(distance <= 3) return "Second and short \u2014 stay aggressive, another chunk sets up an easy third down.";
+    if(distance <= 7) return "Second and medium \u2014 stay balanced, keep the defense guessing.";
+    return "Second and long \u2014 start working your way back to a manageable third down.";
+  }
+  return "First down \u2014 fresh set of downs, establish whatever look you like.";
+}
+
+function defCoachTip(down, distance, ballOn){
+  if(ballOn <= 10) return "They're backed up near their own goal \u2014 good spot to pin your ears back, a big loss here is huge.";
+  if(ballOn >= 90) return "They're deep in the red zone \u2014 the field's shrunk, keep everything in front of you.";
+  if(down === 4) return distance <= 2
+    ? "Fourth and short \u2014 they're going for it, load the box."
+    : "Fourth and long \u2014 they need a lot, make them earn it downfield.";
+  if(down === 3){
+    if(distance <= 2) return "Third and short \u2014 expect the run, but don't ignore a quick pass.";
+    if(distance <= 6) return "Third and manageable \u2014 disguise the coverage, this is a passing down.";
+    return "Third and long \u2014 rush the passer, a sack or incompletion ends the drive.";
+  }
+  if(down === 2){
+    if(distance <= 3) return "Second and short \u2014 stay honest against the run.";
+    if(distance <= 7) return "Second and medium \u2014 balanced call, don't overcommit either way.";
+    return "Second and long \u2014 good spot to pressure, they're behind schedule.";
+  }
+  return "First down \u2014 read their formation, no need to guess yet.";
 }
 
 /* ================= networking / room state ================= */
@@ -1135,7 +1190,8 @@ function buildPanel(){
         "Hidden from the defence \u2014 pick your play.", false,
         groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
         ()=> openEditor('offense','play'), 'Create your own play',
-        text=> handleTypedPlay(text, onPick, onPickCustom)
+        text=> handleTypedPlay(text, onPick, onPickCustom),
+        offCoachTip(game.down, game.distance, game.ballOn)
       ));
     } else {
       panel.appendChild(waitingBox("Offence is making their play call\u2026"));
@@ -1148,7 +1204,8 @@ function buildPanel(){
         "Hidden from the offence \u2014 make your call.", true,
         groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPick, onPickCustom),
         ()=> openEditor('defense','play'), 'Create your own call',
-        text=> handleTypedCall(text, onPick, onPickCustom)
+        text=> handleTypedCall(text, onPick, onPickCustom),
+        defCoachTip(game.down, game.distance, game.ballOn)
       ));
     } else {
       panel.appendChild(waitingBox("Defence is making their call\u2026"));
@@ -1191,7 +1248,8 @@ function buildLocalPanel(phase){
       "Hidden from the defence \u2014 pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom),
       ()=> openEditor('offense','play'), 'Create your own play',
-      text=> handleTypedPlay(text, onPickOff, onPickOffCustom)
+      text=> handleTypedPlay(text, onPickOff, onPickOffCustom),
+      offCoachTip(game.down, game.distance, game.ballOn)
     ));
 
   } else if(phase === 'HANDOFF_TO_DEF'){
@@ -1206,7 +1264,8 @@ function buildLocalPanel(phase){
       "Hidden from the offence \u2014 make your call.", true,
       groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPickDef, onPickDefCustom),
       ()=> openEditor('defense','play'), 'Create your own call',
-      text=> handleTypedCall(text, onPickDef, onPickDefCustom)
+      text=> handleTypedCall(text, onPickDef, onPickDefCustom),
+      defCoachTip(game.down, game.distance, game.ballOn)
     ));
 
   } else if(phase === 'RESULT'){
@@ -1260,10 +1319,16 @@ function groupsByPersonnel(builtinDict, customList, personnelFn, onPick, onPickC
   return Object.keys(map).sort().map(label=>({heading:label+' personnel', entries:map[label]}));
 }
 
-function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler){
+function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText){
   const wrap = document.createElement('div');
   const p = document.createElement('div'); p.className='prompt'; p.innerHTML = promptText;
   wrap.appendChild(p);
+
+  if(coachText){
+    const coach = document.createElement('div'); coach.className = 'coach-tip' + (isDef ? ' def' : '');
+    coach.innerHTML = `<span class="coach-label">Coach says</span>${coachText}`;
+    wrap.appendChild(coach);
+  }
 
   if(typedHandler){
     const typedWrap = document.createElement('div'); typedWrap.className='typed-call-row';
