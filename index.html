@@ -23,6 +23,16 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg-dark);color:var(--chalk);font-family:'Space Grotesk',sans-serif;}
+
+  .topnav{ position:sticky; top:0; z-index:100; background:var(--bg-dark); border-bottom:1px solid var(--board-line); }
+  .topnav-inner{ max-width:720px; margin:0 auto; display:flex; gap:2px; padding:6px 16px; overflow-x:auto; }
+  .topnav button{
+    background:transparent; border:none; color:var(--chalk-dim); cursor:pointer;
+    font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:500;
+    padding:9px 13px; white-space:nowrap; border-bottom:2px solid transparent;
+  }
+  .topnav button:hover{ color:var(--chalk); }
+  .topnav button.active{ color:var(--gold); font-weight:700; border-bottom-color:var(--gold); }
   .app{max-width:720px;margin:0 auto;padding:18px 16px 40px;}
 
   .masthead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;gap:12px;}
@@ -222,6 +232,15 @@
 </style>
 </head>
 <body>
+<nav class="topnav" id="topnav">
+  <div class="topnav-inner">
+    <button data-nav="home">Home</button>
+    <button data-nav="editor">Practice</button>
+    <button data-nav="landing">Play</button>
+    <button data-nav="about">About</button>
+    <button data-nav="feedback">Feedback</button>
+  </div>
+</nav>
 <div class="app">
 
   <div class="masthead">
@@ -262,6 +281,9 @@ const firebaseConfig = {
   projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
 };
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey.indexOf('REPLACE') === -1;
+
+// TODO: replace with the real email you want feedback/bug reports sent to.
+const FEEDBACK_EMAIL = "REPLACE_WITH_YOUR_EMAIL@example.com";
 if(FIREBASE_CONFIGURED) firebase.initializeApp(firebaseConfig);
 const db = FIREBASE_CONFIGURED ? firebase.database() : null;
 
@@ -707,15 +729,25 @@ async function tryResumeSession(){
   return true;
 }
 
-function leaveGame(){
+function goToScreen(name){
   detachRoomListener();
   const wasLocal = mode === 'local';
+  if(mode && !wasLocal) lsSetJSON(SESSION_KEY, null);
   myRole = null; mode = null; roomCode = null; roomMeta = null; game = null; lastAnimatedSeq = -1;
-  if(!wasLocal) lsSetJSON(SESSION_KEY, null);
-  appScreen = 'landing';
+  editorOverlay = null;
+  appScreen = name;
   document.getElementById('gameArea').style.display = 'none';
   document.getElementById('lobby').style.display = 'block';
+  if(name === 'editor') edInit();
   renderLobby();
+  updateNavActive();
+}
+function leaveGame(){ goToScreen('landing'); }
+
+function updateNavActive(){
+  const map = { home:'home', editor:'editor', about:'about', feedback:'feedback' };
+  const active = map[appScreen] || 'landing';
+  document.querySelectorAll('.topnav button').forEach(b=> b.classList.toggle('active', b.dataset.nav===active));
 }
 
 let roomListenerRef = null;
@@ -758,6 +790,7 @@ function enterGame(){
     : 'room <b style="color:var(--gold)">'+roomCode+'</b>';
   drawStaticField();
   render();
+  updateNavActive();
 }
 
 /* ================= lobby UI ================= */
@@ -766,6 +799,58 @@ const lobby = document.getElementById('lobby');
 
 function renderLobby(){
   lobby.innerHTML = '';
+
+  if(appScreen === 'home'){
+    const c = document.createElement('div'); c.className='lobby-card';
+    c.innerHTML = `
+      <h2>Welcome to Schemer</h2>
+      <p class="sub">A tactical American football trainer \u2014 set your formation, call your play, and see the read. Play a friend online, pass-and-play locally, or build your own playbook from scratch.</p>
+      <div class="lobby-actions">
+        <button id="btnGoPlay">Start playing</button>
+        <button class="ghost" id="btnGoPractice">Build a playbook</button>
+      </div>`;
+    lobby.appendChild(c);
+    document.getElementById('btnGoPlay').onclick = ()=> goToScreen('landing');
+    document.getElementById('btnGoPractice').onclick = ()=> goToScreen('editor');
+    return;
+  }
+
+  if(appScreen === 'about'){
+    const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
+    c.innerHTML = `
+      <h2 style="text-align:center;">About Schemer</h2>
+      <p class="sub">[Add your own story here \u2014 why you built this, and what it's for.]</p>
+      <div class="cat-heading">How it works</div>
+      <p class="sub">[A short explanation of the core idea \u2014 formations, plays, calls, the read.]</p>
+      <div class="cat-heading">Credits</div>
+      <p class="sub">[Your name, and anyone else who helped.]</p>
+      <div class="cat-heading">Contact</div>
+      <p class="sub">[Anything else \u2014 links, socials, etc.]</p>
+      <div class="footer-link" style="margin-top:6px;"><a id="aboutBack">back to home</a></div>`;
+    lobby.appendChild(c);
+    document.getElementById('aboutBack').onclick = ()=> goToScreen('home');
+    return;
+  }
+
+  if(appScreen === 'feedback'){
+    const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
+    c.innerHTML = `
+      <h2 style="text-align:center;">Feedback</h2>
+      <p class="sub">Found a bug, or got an idea? Write it below \u2014 it'll open in your email app addressed straight to the person who built this.</p>
+      <textarea class="ed-input" id="feedbackText" rows="6" style="width:100%;resize:vertical;margin-bottom:12px;" placeholder="What happened, or what would you like to see?"></textarea>
+      <div class="lobby-actions">
+        <button id="feedbackSend">Send feedback</button>
+      </div>`;
+    lobby.appendChild(c);
+    document.getElementById('feedbackSend').onclick = ()=>{
+      const body = document.getElementById('feedbackText').value.trim();
+      if(!body){ return; }
+      const subject = encodeURIComponent('Schemer feedback');
+      window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${encodeURIComponent(body)}`;
+    };
+    return;
+  }
+
   if(appScreen === 'landing'){
     const c = document.createElement('div'); c.className='lobby-card';
     c.innerHTML = `
@@ -902,17 +987,20 @@ function drawLineMarker(dyn, y, color, dashed){
   dyn.appendChild(el('line', attrs));
 }
 
+const FIELD_TOP_Y = 64, FIELD_BOTTOM_Y = 696; // keeps players out of the end zones
+function clampFieldY(y){ return Math.max(FIELD_TOP_Y, Math.min(FIELD_BOTTOM_Y, y)); }
+
 function drawOffense(dyn, formKey, formCustom, ly, animate){
   const pts = offensePoints(formKey, formCustom);
-  pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, ly+p.y, i===2?'square':'X', 'var(--gold)', animate, i)));
+  pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, clampFieldY(ly+p.y), i===2?'square':'X', 'var(--gold)', animate, i)));
 }
 function drawDefense(dyn, frontKey, frontCustom, ly, animate){
   const pts = defensePoints(frontKey, frontCustom);
   if(showPosLabels){
     const labels = computePositionLabels(pts);
-    pts.forEach((p,i)=> dyn.appendChild(makeLabelMarker(p.x, ly+p.y, labels[i]||p.role||'?', 'var(--brick)', animate, i)));
+    pts.forEach((p,i)=> dyn.appendChild(makeLabelMarker(p.x, clampFieldY(ly+p.y), labels[i]||p.role||'?', 'var(--brick)', animate, i)));
   } else {
-    pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, ly+p.y, 'O', 'var(--brick)', animate, i)));
+    pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, clampFieldY(ly+p.y), 'O', 'var(--brick)', animate, i)));
   }
 }
 
@@ -973,6 +1061,14 @@ function computePositionLabels(players){
 
   const s = byRole.S.slice().sort((a,b)=> players[a].y-players[b].y);
   s.forEach((idx,pos)=>{ labels[idx] = pos===0 ? 'FS' : 'SS'; });
+
+  // spatial correction: a defensive end lined up wider than the actual corners isn't
+  // playing like a traditional end anymore \u2014 relabel by where he really stands
+  const cbWidths = cb.map(idx => Math.abs(players[idx].x - 320));
+  const narrowestCB = cbWidths.length ? Math.min(...cbWidths) : Infinity;
+  labels.forEach((lab, idx)=>{
+    if(lab === 'DE' && Math.abs(players[idx].x - 320) > narrowestCB) labels[idx] = 'OLB';
+  });
 
   return labels;
 }
@@ -1406,26 +1502,28 @@ function resolvePlay(g){
   const o = computeOutcome(g);
   let yards = o.yards;
   let touchdown = false, driveOver = false;
-  let newBallOn;
 
   if(o.breakaway){
     yards = 100 - g.ballOn;
-    newBallOn = 100;
     touchdown = true; driveOver = true;
   } else {
-    newBallOn = g.ballOn + yards;
+    const newBallOn = g.ballOn + yards;
     if(newBallOn >= 100){
-      touchdown = true; driveOver = true; newBallOn = 100;
+      touchdown = true; driveOver = true;
       yards = 100 - g.ballOn;
     } else if(yards >= g.distance){
+      g.ballOn = newBallOn;
       g.down = 1; g.distance = Math.min(10, 100-newBallOn);
     } else {
+      g.ballOn = newBallOn;
       g.down += 1; g.distance -= yards;
       if(g.distance < 1) g.distance = 1;
-      if(g.down > 4){ driveOver = true; newBallOn = 25; g.down = 1; g.distance = 10; }
+      if(g.down > 4){ driveOver = true; }
     }
   }
-  g.ballOn = newBallOn;
+
+  if(driveOver){ g.ballOn = 25; g.down = 1; g.distance = 10; }
+
   g.lastResult = { yards, text:o.text, role:o.role, touchdown, driveOver };
   if(o.breakaway && touchdown) g.lastResult.text += " Nobody's catching him \u2014 touchdown!";
   if(driveOver && !touchdown) g.lastResult.text += " Turnover on downs \u2014 fresh drive.";
@@ -1527,11 +1625,20 @@ function personnelSelectHtml(selected){
     '</select>';
 }
 
+const LINE_TOLERANCE = 3; // px slack for "on the line of scrimmage"
+
 async function edPersist(){
   const nameInput = document.getElementById('edName');
   const name = (nameInput && nameInput.value.trim()) || 'Untitled';
   const isOff = ed.side==='offense';
   if(ed.type==='formation'){
+    if(isOff){
+      const backfieldCount = ed.points.filter(p => (p.y - EDITOR_LOS_Y) > LINE_TOLERANCE).length;
+      if(backfieldCount > 4){
+        alert(`Only 4 players are allowed off the line of scrimmage \u2014 you've got ${backfieldCount} back there. Bring ${backfieldCount-4} of them up to the line before saving.`);
+        return false;
+      }
+    }
     const players = ed.points.map(p=> isOff
       ? {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y)}
       : {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y), role: roleForDepth(p.y)});
@@ -1560,6 +1667,7 @@ async function edPersist(){
     customDefCalls = list;
     await saveCustomList(CUSTOM_STORE_KEYS.defCall, list);
   }
+  return true;
 }
 
 async function edPersistDelete(){
@@ -1575,10 +1683,10 @@ async function edPersistDelete(){
   }
 }
 
-async function edSave(){ await edPersist(); appScreen = 'landing'; renderLobby(); }
+async function edSave(){ if(await edPersist()){ appScreen = 'landing'; renderLobby(); } }
 async function edDelete(){ await edPersistDelete(); appScreen = 'landing'; renderLobby(); }
 
-async function edSaveInline(){ await edPersist(); editorOverlay = null; renderPanel(); }
+async function edSaveInline(){ if(await edPersist()){ editorOverlay = null; renderPanel(); } }
 async function edDeleteInline(){ await edPersistDelete(); editorOverlay = null; renderPanel(); }
 function edCancelInline(){ editorOverlay = null; renderPanel(); }
 
@@ -1635,7 +1743,7 @@ function renderInlineEditor(){
     ${catButtonsHtml}
     <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <p class="ed-hint">${ed.type==='formation'
-      ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.')
+      ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.') + (isOff ? ' Nobody can line up past the line of scrimmage, and at least 7 need to be on it (max 4 in the backfield).' : ' Defenders can\u2019t cross into the neutral zone either.')
       : 'Drag from the ball to draw where it goes \u2014 that\u2019s what the ' + (isOff?'play':'call') + ' does.'}</p>
     <div class="ed-actions">
       <button id="edFlipBtn" class="ghost">Flip</button>
@@ -1714,7 +1822,7 @@ function renderEditorScreen(){
     ${catButtonsHtml}
     <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <p class="ed-hint">${ed.type==='formation'
-      ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.')
+      ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.') + (isOff ? ' Nobody can line up past the line of scrimmage, and at least 7 need to be on it (max 4 in the backfield).' : ' Defenders can\u2019t cross into the neutral zone either.')
       : 'Drag from the ball to draw where it goes \u2014 that\u2019s what the ' + (isOff?'play':'call') + ' does. The backdrop players are just for reference.'}</p>
     <div class="ed-actions">
       <button id="edFlipBtn" class="ghost">Flip</button>
@@ -1756,7 +1864,10 @@ function edStartDragPoint(evt, i, svg){
   const offX = orig.x - startP.x, offY = orig.y - startP.y;
   const move = e=>{
     const p = edSvgPoint(e, svg);
-    const nx = p.x+offX, ny = p.y+offY;
+    const nx = p.x+offX;
+    let ny = p.y+offY;
+    // genuine rule: nobody may line up across the line of scrimmage before the snap
+    ny = ed.side==='offense' ? Math.max(ny, EDITOR_LOS_Y) : Math.min(ny, EDITOR_LOS_Y);
     ed.points[i] = ed.side==='defense'
       ? {...ed.points[i], x:nx, y:ny, role: roleForDepth(ny)}
       : {...ed.points[i], x:nx, y:ny};
@@ -1859,11 +1970,13 @@ document.getElementById('posToggle').onclick = ()=>{
   document.getElementById('posToggle').classList.toggle('on', showPosLabels);
   refreshCurrentView();
 };
+document.querySelectorAll('.topnav button').forEach(b=> b.onclick = ()=> goToScreen(b.dataset.nav));
 
 (async function boot(){
   await loadAllCustom();
   const resumed = await tryResumeSession();
-  if(!resumed){ appScreen = 'landing'; renderLobby(); }
+  if(!resumed){ appScreen = 'home'; renderLobby(); }
+  updateNavActive();
 })();
 </script>
 </body>
