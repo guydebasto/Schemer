@@ -202,6 +202,15 @@
   .ed-hint{ font-size:12px; color:var(--chalk-dim); margin:10px 0; line-height:1.5; }
   .ed-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .custom-pill{ font-size:10px; color:var(--gold); border:1px solid var(--gold-dim); padding:1px 5px; margin-left:4px; vertical-align:middle; }
+  .choice-btn-wrap{ position:relative; }
+  .choice-btn-wrap .choice-btn{ width:100%; }
+  .remove-btn{
+    position:absolute; top:4px; right:4px; z-index:2;
+    background:var(--brick-dim); color:var(--chalk); border:none;
+    width:18px; height:18px; border-radius:2px; font-size:12px; line-height:1;
+    cursor:pointer; padding:0;
+  }
+  .remove-btn:hover{ background:var(--brick); }
   .cat-heading{ font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--chalk-dim); margin:14px 0 6px; }
   .cat-heading:first-of-type{ margin-top:0; }
   .create-new-btn{
@@ -1420,6 +1429,40 @@ function quadPoint(p0, c, p1, t){
 }
 function setAttrs(el2,attrs){ for(const k in attrs) el2.setAttribute(k, attrs[k]); }
 
+function synthesizeRouteOffset(startPt, category, seedIndex){
+  // a simple, deterministic generic route for players without one explicitly drawn
+  const side = startPt.x < 320 ? -1 : 1;
+  const isPassy = (category==='pass' || category==='deep' || category==='playAction');
+  const forward = isPassy ? 55 : 25; // pass plays send receivers further downfield; run plays are shorter releases/blocks
+  const lateral = isPassy ? 10*side : 18*side;
+  return { dx: lateral, dy: -forward - (seedIndex%3)*6 };
+}
+
+function buildRouteAnimators(dyn, ly, play, offKey, offCustom){
+  const pts = offensePoints(offKey, offCustom);
+  const animators = [];
+  for(let i=5; i<pts.length; i++){
+    const p = pts[i];
+    const start = { x:p.x, y: ly+p.y };
+    const stored = play.routes && play.routes[i];
+    const offset = stored || synthesizeRouteOffset(p, play.category, i);
+    const end = {
+      x: Math.max(48, Math.min(592, start.x + offset.dx)),
+      y: Math.min(ly, start.y + offset.dy), // routes run upfield, never backward past the snap depth
+    };
+    const marker = makeMarker(start.x, start.y, 'X', 'var(--gold-dim)', false, 0);
+    const lines = marker.querySelectorAll('line');
+    lines.forEach(l=> l.setAttribute('stroke-width', 2));
+    const offsets = Array.from(lines).map(l=>({
+      x1:parseFloat(l.getAttribute('x1')), y1:parseFloat(l.getAttribute('y1')),
+      x2:parseFloat(l.getAttribute('x2')), y2:parseFloat(l.getAttribute('y2')),
+    }));
+    dyn.appendChild(marker);
+    animators.push({ start, end, lines, offsets });
+  }
+  return animators;
+}
+
 function drawPlayResult(dyn, ly, animate){
   const r = game.lastResult;
   const play = getPlay(game.offPlayKey, game.offPlayCustom);
@@ -1435,9 +1478,11 @@ function drawPlayResult(dyn, ly, animate){
   };
   const p0 = {x:startX,y:startY}, p1 = {x:finalX,y:finalY};
 
+  const routeAnimators = game.offKey ? buildRouteAnimators(dyn, ly, play, game.offKey, game.offCustom) : [];
+
   const ball = makeMarker(startX, startY, 'X', 'var(--gold)', false, 0);
   const ballLines = ball.querySelectorAll('line');
-  ballLines.forEach(l=> l.setAttribute('stroke-width', 3));
+  ballLines.forEach(l=> { l.setAttribute('stroke-width', 3); l.setAttribute('stroke-dasharray', '5,4'); });
   const ballOffsets = Array.from(ballLines).map(l=>({
     x1:parseFloat(l.getAttribute('x1')), y1:parseFloat(l.getAttribute('y1')),
     x2:parseFloat(l.getAttribute('x2')), y2:parseFloat(l.getAttribute('y2')),
@@ -1459,10 +1504,14 @@ function drawPlayResult(dyn, ly, animate){
     const dx0 = finalX - startX, dy0 = finalY - startY;
     ballLines.forEach((l,i)=> setAttrs(l, {x1:ballOffsets[i].x1+dx0, y1:ballOffsets[i].y1+dy0, x2:ballOffsets[i].x2+dx0, y2:ballOffsets[i].y2+dy0}));
     defCircle.setAttribute('cx', finalX); defCircle.setAttribute('cy', finalY);
+    routeAnimators.forEach(a=>{
+      const ddx = a.end.x-a.start.x, ddy = a.end.y-a.start.y;
+      a.lines.forEach((l,i)=> setAttrs(l, {x1:a.offsets[i].x1+ddx, y1:a.offsets[i].y1+ddy, x2:a.offsets[i].x2+ddx, y2:a.offsets[i].y2+ddy}));
+    });
     return;
   }
 
-  const DURATION = 850, DEF_DELAY = 120;
+  const DURATION = 1500, DEF_DELAY = 150;
   const t0 = performance.now();
   function frame(now){
     const elapsed = now - t0;
@@ -1470,6 +1519,13 @@ function drawPlayResult(dyn, ly, animate){
     const pos = quadPoint(p0, control, p1, easeOutCubic(ballT));
     const dx0 = pos.x - startX, dy0 = pos.y - startY;
     ballLines.forEach((l,i)=> setAttrs(l, {x1:ballOffsets[i].x1+dx0, y1:ballOffsets[i].y1+dy0, x2:ballOffsets[i].x2+dx0, y2:ballOffsets[i].y2+dy0}));
+
+    const routeT = easeOutCubic(ballT);
+    routeAnimators.forEach(a=>{
+      const rx = a.start.x + (a.end.x-a.start.x)*routeT, ry = a.start.y + (a.end.y-a.start.y)*routeT;
+      const rdx = rx-a.start.x, rdy = ry-a.start.y;
+      a.lines.forEach((l,i)=> setAttrs(l, {x1:a.offsets[i].x1+rdx, y1:a.offsets[i].y1+rdy, x2:a.offsets[i].x2+rdx, y2:a.offsets[i].y2+rdy}));
+    });
 
     const defElapsed = Math.max(0, elapsed - DEF_DELAY);
     const defT = Math.min(defElapsed/(DURATION - DEF_DELAY*0.6), 1);
@@ -1850,7 +1906,7 @@ function buildPanel(){
         groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
           k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
           item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; }), false),
-        null, null
+        null, null, null, null, 'defense'
       );
       panel.appendChild(defAdjustScreen(()=> writeGame(g=>{ g.phase='OFF_PLAY'; }), changeGrid));
     } else {
@@ -1927,7 +1983,7 @@ function buildLocalPanel(phase){
       groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
         k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='HANDOFF_TO_OFF'; }),
         item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='HANDOFF_TO_OFF'; }), false),
-      null, null
+      null, null, null, null, 'defense'
     );
     panel.appendChild(defAdjustScreen(()=> writeGame(g=>{ g.phase='HANDOFF_TO_OFF'; }), changeGrid));
 
@@ -2015,7 +2071,7 @@ function buildAIPanel(phase){
       groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
         k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
         item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; }), false),
-      null, null
+      null, null, null, null, 'defense'
     );
     panel.appendChild(defAdjustScreen(()=> writeGame(g=>{ g.phase='OFF_PLAY'; }), changeGrid));
 
@@ -2174,7 +2230,13 @@ function groupsByPersonnel(builtinDict, customList, personnelFn, onPick, onPickC
   return Object.keys(map).sort().map(label=>({heading:label+' personnel', entries:map[label]}));
 }
 
+function inferRemoveKind(isDef, previewSide){
+  if(previewSide) return isDef ? 'defForm' : 'offForm';
+  return isDef ? 'defCall' : 'offPlay';
+}
+
 function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText, previewSide){
+  const removeKind = inferRemoveKind(isDef, previewSide);
   const wrap = document.createElement('div');
   const p = document.createElement('div'); p.className='prompt'; p.innerHTML = promptText;
   wrap.appendChild(p);
@@ -2234,7 +2296,23 @@ function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHa
           clearTimeout(formationHoverTimer);
         });
       }
-      grid.appendChild(btn);
+      if(e.isCustom){
+        const cell = document.createElement('div'); cell.className = 'choice-btn-wrap';
+        cell.appendChild(btn);
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'remove-btn'; rm.textContent = '\u00d7'; rm.title = 'Remove';
+        rm.onclick = async (ev)=>{
+          ev.stopPropagation();
+          if(confirm(`Remove "${e.item.name}"? This can't be undone.`)){
+            await removeCustomItem(removeKind, e.item.id);
+            refreshCurrentView();
+          }
+        };
+        cell.appendChild(rm);
+        grid.appendChild(cell);
+      } else {
+        grid.appendChild(btn);
+      }
     });
     wrap.appendChild(grid);
   });
@@ -2458,7 +2536,7 @@ let ed = { side:'offense', type:'formation', points:[], backdropKey:'singleback'
 function edInit(){
   ed = { side:'offense', type:'formation', points:[], backdropKey:'singleback',
     arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category:'run', personnel:'11', editingId:null,
-    ghostOn:false, ghostKey:'base43' };
+    ghostOn:false, ghostKey:'base43', routes:{} };
   ed.points = edDefaultPoints('offense');
 }
 
@@ -2476,14 +2554,14 @@ function roleForDepth(y){
 }
 
 function edSwitchSide(side){
-  ed.side = side; ed.editingId = null;
+  ed.side = side; ed.editingId = null; ed.routes = {};
   ed.ghostKey = side==='offense' ? 'base43' : 'singleback';
   if(ed.type==='formation'){ ed.points = edDefaultPoints(side); ed.personnel='11'; }
   else { ed.category = side==='offense'?'run':'runD'; ed.arrowEnd={x:380,y:EDITOR_LOS_Y-90}; ed.backdropKey = side==='offense'?'singleback':'base43'; }
   renderEditorScreen();
 }
 function edSwitchType(type){
-  ed.type = type; ed.editingId = null;
+  ed.type = type; ed.editingId = null; ed.routes = {};
   if(type==='formation'){ ed.points = edDefaultPoints(ed.side); }
   else { ed.category = ed.side==='offense'?'run':'runD'; ed.arrowEnd={x:380,y:EDITOR_LOS_Y-90}; ed.backdropKey = ed.side==='offense'?'singleback':'base43'; }
   renderEditorScreen();
@@ -2492,7 +2570,7 @@ function edCategoryPick(cat){ ed.category = cat; renderEditorScreen(); }
 function edBackdropChange(key){ ed.backdropKey = key; edRenderCanvas(); }
 
 function edLoadExisting(value, inline){
-  ed.editingId = null;
+  ed.editingId = null; ed.routes = {};
   const isOff = ed.side==='offense';
   const done = ()=> inline ? renderPanel() : renderEditorScreen();
   if(!value){
@@ -2530,6 +2608,7 @@ function edLoadExisting(value, inline){
     if(item){
       ed.editingId=id; ed.category=item.category;
       ed.arrowEnd = isOff ? { x:item.xTarget, y: EDITOR_LOS_Y - (item.bend*180+30) } : (item.arrowEnd || {x:380,y:EDITOR_LOS_Y-90});
+      ed.routes = item.routes || {};
     }
   }
   done();
@@ -2603,6 +2682,7 @@ async function edPersist(){
     const bend = Math.max(0.1, Math.min(0.9, Math.abs(dx)/300));
     const item = { id: ed.editingId || genId(), name, category: ed.category,
       note: "A play you designed.", xTarget: Math.round(ed.arrowEnd.x), bend };
+    if(ed.routes && Object.keys(ed.routes).length) item.routes = ed.routes;
     let list = customOffPlays.filter(x=>x.id!==item.id); list.push(item);
     customOffPlays = list;
     ok = await saveCustomList(CUSTOM_STORE_KEYS.offPlay, list);
@@ -2619,6 +2699,13 @@ async function edPersist(){
   }
   alert('Saved.');
   return true;
+}
+
+async function removeCustomItem(kind, id){
+  if(kind==='offForm'){ customOffFormations = customOffFormations.filter(x=>x.id!==id); await saveCustomList(CUSTOM_STORE_KEYS.offForm, customOffFormations); }
+  else if(kind==='defForm'){ customDefFormations = customDefFormations.filter(x=>x.id!==id); await saveCustomList(CUSTOM_STORE_KEYS.defForm, customDefFormations); }
+  else if(kind==='offPlay'){ customOffPlays = customOffPlays.filter(x=>x.id!==id); await saveCustomList(CUSTOM_STORE_KEYS.offPlay, customOffPlays); }
+  else if(kind==='defCall'){ customDefCalls = customDefCalls.filter(x=>x.id!==id); await saveCustomList(CUSTOM_STORE_KEYS.defCall, customDefCalls); }
 }
 
 async function edPersistDelete(){
@@ -2645,7 +2732,7 @@ function openEditor(side, type){
   editorOverlay = { side, type };
   ed = { side, type, points:[], backdropKey: side==='offense'?'singleback':'base43',
     arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category: type==='play' ? (side==='offense'?'run':'runD') : null,
-    personnel:'11', editingId:null, ghostOn:false, ghostKey: side==='offense'?'base43':'singleback' };
+    personnel:'11', editingId:null, ghostOn:false, ghostKey: side==='offense'?'base43':'singleback', routes:{} };
   if(type==='formation') ed.points = edDefaultPoints(side);
   renderPanel();
 }
@@ -2724,28 +2811,46 @@ function renderInlineEditor(){
 
 function playcallReferenceCard(){
   const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left'; c.style.marginTop='16px';
-  const renderSide = (label, builtinDict, customList, categoryMap)=>{
-    let html = `<h2 style="text-align:center;">${label}</h2>`;
+  c.innerHTML = `<h2 style="text-align:center;">All Playcalls</h2>
+    <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created.</p>`;
+
+  const renderSide = (label, builtinDict, customList, categoryMap, removeKind)=>{
+    const h = document.createElement('h2'); h.style.textAlign='center'; h.textContent = label;
+    c.appendChild(h);
     Object.keys(categoryMap).forEach(catKey=>{
       const built = Object.keys(builtinDict).filter(k=>builtinDict[k].category===catKey);
       const custom = (customList||[]).filter(x=>x.category===catKey);
       if(!built.length && !custom.length) return;
-      html += `<div class="cat-heading">${categoryMap[catKey]}</div><div class="choice-grid">`;
+      const heading = document.createElement('div'); heading.className='cat-heading'; heading.textContent = categoryMap[catKey];
+      c.appendChild(heading);
+      const grid = document.createElement('div'); grid.className='choice-grid';
       built.forEach(k=>{
-        html += `<div class="choice-btn" style="cursor:default;"><span class="name">${builtinDict[k].name}</span><span class="desc">${builtinDict[k].note||''}</span></div>`;
+        const item = document.createElement('div'); item.className='choice-btn'; item.style.cursor='default';
+        item.innerHTML = `<span class="name">${builtinDict[k].name}</span><span class="desc">${builtinDict[k].note||''}</span>`;
+        grid.appendChild(item);
       });
       custom.forEach(item=>{
-        html += `<div class="choice-btn" style="cursor:default;"><span class="name">${item.name} <span class="custom-pill">yours</span></span><span class="desc">${item.note||''}</span></div>`;
+        const cell = document.createElement('div'); cell.className='choice-btn-wrap';
+        const btn = document.createElement('div'); btn.className='choice-btn'; btn.style.cursor='default';
+        btn.innerHTML = `<span class="name">${item.name} <span class="custom-pill">yours</span></span><span class="desc">${item.note||''}</span>`;
+        cell.appendChild(btn);
+        const rm = document.createElement('button');
+        rm.type='button'; rm.className='remove-btn'; rm.textContent='\u00d7'; rm.title='Remove';
+        rm.onclick = async ()=>{
+          if(confirm(`Remove "${item.name}"? This can't be undone.`)){
+            await removeCustomItem(removeKind, item.id);
+            refreshCurrentView();
+          }
+        };
+        cell.appendChild(rm);
+        grid.appendChild(cell);
       });
-      html += `</div>`;
+      c.appendChild(grid);
     });
-    return html;
   };
-  c.innerHTML = `<h2 style="text-align:center;">All Playcalls</h2>
-    <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created.</p>`
-    + renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES)
-    + '<div class="divider"></div>'
-    + renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES);
+  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay');
+  const divider = document.createElement('div'); divider.className='divider'; c.appendChild(divider);
+  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall');
   return c;
 }
 
@@ -2894,6 +2999,19 @@ function edStartDragArrow(evt, svg){
   window.addEventListener('pointerup', up);
 }
 
+function edStartRouteDraw(evt, idx, svg, startPt){
+  evt.preventDefault();
+  ed.routes = ed.routes || {};
+  const move = e=>{
+    const p = edSvgPoint(e, svg);
+    ed.routes[idx] = { dx: p.x - startPt.x, dy: p.y - startPt.y };
+    edRenderCanvas();
+  };
+  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
 function edDraggableMarker(svg, x, y, shape, color, labelText, onDown){
   const g = el('g',{});
   const visual = labelText ? makeLabelMarker(x, y, labelText, color, false, 0) : makeMarker(x, y, shape, color, false, 0);
@@ -2962,12 +3080,27 @@ function edRenderCanvas(){
         const g = makeLabelMarker(p.x,p.y, backdropLabels[i]||'?', 'var(--brick-dim)', false, 0);
         g.style.opacity='0.55';
         svg.appendChild(g);
-        return;
+      } else {
+        const shape = isOff ? (i===2 ? 'square' : 'X') : 'O';
+        const g = makeMarker(p.x,p.y, shape, isOff?'var(--gold-dim)':'var(--brick-dim)', false, 0);
+        g.style.opacity='0.55';
+        svg.appendChild(g);
       }
-      const shape = isOff ? (i===2 ? 'square' : 'X') : 'O';
-      const g = makeMarker(p.x,p.y, shape, isOff?'var(--gold-dim)':'var(--brick-dim)', false, 0);
-      g.style.opacity='0.55';
-      svg.appendChild(g);
+      if(isOff && i>=5){
+        const hit = el('circle',{cx:p.x,cy:p.y,r:15,fill:'transparent'});
+        hit.style.cursor='crosshair';
+        hit.addEventListener('pointerdown', e=> edStartRouteDraw(e, i, svg, p));
+        svg.appendChild(hit);
+      }
+    });
+    Object.keys(ed.routes||{}).forEach(idxStr=>{
+      const idx = +idxStr;
+      const p = backdropPts[idx];
+      const r = ed.routes[idx];
+      if(!p || !r) return;
+      const end = { x: p.x + r.dx, y: p.y + r.dy };
+      svg.appendChild(el('line',{x1:p.x,y1:p.y,x2:end.x,y2:end.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'3,3'}));
+      svg.appendChild(el('circle',{cx:end.x,cy:end.y,r:5,fill:'var(--gold)'}));
     });
 
     const ballX=320, ballY=EDITOR_LOS_Y;
