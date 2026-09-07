@@ -107,6 +107,9 @@
   .choice-btn .name{display:block;font-weight:700;font-size:14px;margin-bottom:4px;}
   .choice-btn .desc{display:block;font-size:12px;color:var(--chalk-dim);line-height:1.4;}
   .choice-btn.def:hover{border-color:var(--brick);background:rgba(193,80,63,0.08);}
+  .choice-btn.disabled-btn{ opacity:0.4; cursor:not-allowed; }
+  .choice-btn.disabled-btn:hover{ border-color:var(--board-line); background:transparent; }
+  .choice-btn.disabled-btn .desc{ color:var(--brick); font-style:italic; }
 
   .waiting{
     text-align:center;
@@ -337,13 +340,13 @@ const formations = {
   ace: { name:"Ace", note:"One back, a tight end on each side \u2014 a balanced, two-way look that can run either direction.",
     skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:404,y:0},{label:'TE',x:236,y:0},{label:'WR',x:175,y:0},{label:'WR',x:465,y:0}] },
   bunch: { name:"Bunch Trips", note:"Three receivers bunched tight to one side, a lone receiver isolated on the backside \u2014 creates natural picks and confusion in coverage.",
-    skill:[{label:'QB',x:320,y:52},{label:'RB',x:293,y:48},{label:'WR',x:445,y:6},{label:'WR',x:480,y:14},{label:'WR',x:465,y:-8},{label:'WR',x:175,y:0}] },
+    skill:[{label:'QB',x:320,y:52},{label:'RB',x:293,y:48},{label:'WR',x:445,y:6},{label:'WR',x:480,y:14},{label:'WR',x:460,y:22},{label:'WR',x:175,y:0}] },
   wishbone: { name:"Wishbone", note:"Three backs stacked in a wishbone shape behind center \u2014 an old-school option look built almost entirely to run.",
     skill:[{label:'QB',x:320,y:20},{label:'FB',x:320,y:42},{label:'HB',x:293,y:62},{label:'HB',x:347,y:62},{label:'TE',x:404,y:0},{label:'WR',x:175,y:0}] },
   shotguntwins: { name:"Shotgun Twins", note:"Two receivers stacked on each side, no tight end \u2014 four vertical or crossing options with a back to check down to.",
     skill:[{label:'QB',x:320,y:50},{label:'RB',x:293,y:46},{label:'WR',x:175,y:0},{label:'WR',x:230,y:4},{label:'WR',x:410,y:4},{label:'WR',x:465,y:0}] },
   trey: { name:"Trey", note:"Three tight ends stacked to one side \u2014 overloads the formation to create a numbers advantage in the run game.",
-    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:404,y:0},{label:'TE',x:440,y:4},{label:'TE',x:480,y:-4},{label:'WR',x:175,y:0}] }
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:404,y:0},{label:'TE',x:440,y:4},{label:'TE',x:475,y:14},{label:'WR',x:175,y:0}] }
 };
 
 const fronts = {
@@ -378,16 +381,21 @@ const fronts = {
 };
 
 const plays = {
-  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:325, bend:0.1, category:'run' },
-  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run' },
+  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:325, bend:0.1, category:'run', needsBack:true },
+  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run', needsBack:true },
   quickPass:      { name:"Quick Pass",      note:"Get it out fast on a quick route before the rush arrives.",             xTarget:430, bend:0.5,  category:'pass' },
-  playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:390, bend:0.3,  category:'playAction' },
+  playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:390, bend:0.3,  category:'playAction', needsBack:true },
   screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass' },
-  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run' },
+  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true },
   deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:355, bend:0.15, category:'deep' },
-  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run' },
+  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run', needsBack:true },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
+
+function formationHasBack(formKey, formCustom){
+  if(formKey === CUSTOM || !formations[formKey]) return true; // no position data on custom formations \u2014 don't restrict what we can't check
+  return formations[formKey].skill.some(p => p.label==='RB' || p.label==='HB' || p.label==='FB');
+}
 
 const calls = {
   runBlitz:    { name:"Run Blitz",     note:"Send an extra man to shoot a gap the instant the ball's snapped.", category:'blitz' },
@@ -562,7 +570,12 @@ async function handleTypedPlay(text, onPick, onPickCustom){
   const clean = (text||'').trim();
   if(!clean) return "Type in a play first.";
   const match = resolveTypedEntry(clean, plays, customOffPlays);
-  if(match){ match.type==='built' ? onPick(match.key) : onPickCustom(match.item); return null; }
+  if(match){
+    if(match.type==='built' && plays[match.key].needsBack && !formationHasBack(game.offKey, game.offCustom)){
+      return `${plays[match.key].name} needs a running back in your formation \u2014 you don't have one on the field.`;
+    }
+    match.type==='built' ? onPick(match.key) : onPickCustom(match.item); return null;
+  }
   const defMatch = resolveTypedEntry(clean, calls, customDefCalls);
   if(defMatch || soundsDefensive(clean)){
     return `"${clean}" sounds like a defensive call \u2014 you're calling the offence.`;
@@ -691,11 +704,12 @@ function aiWeightedPick(entries, difficultyKey){
   return sharpened[sharpened.length-1];
 }
 
-function aiPickPlay(down, distance, ballOn, difficultyKey, styleKey){
+function aiPickPlay(down, distance, ballOn, difficultyKey, styleKey, hasBack){
   const style = OFF_PLAYSTYLES[styleKey] || OFF_PLAYSTYLES.balanced;
   const sit = situationalOffWeights(down, distance, ballOn);
   const entries = [];
   Object.keys(plays).forEach(k=>{
+    if(plays[k].needsBack && hasBack===false) return;
     const cat = plays[k].category;
     const w = (style.weights[cat]||1) * (sit[cat]||1) * ((style.keyBoost&&style.keyBoost[k])||1);
     entries.push({key:k, item:plays[k], isCustom:false, weight:w});
@@ -1608,7 +1622,7 @@ function computeMotionEndpoint(g, motionType, idx, startPt){
   return { x: startPt.x, y: startPt.y }; // return: net zero displacement
 }
 
-function animateMotionMarker(startAbs, endAbs, bend, opts){
+function animateMotionMarker(startAbs, endAbs, bend, opts, ly){
   opts = opts || {};
   const duration = opts.duration || 900;
   const dyn = document.getElementById('dynamic');
@@ -1617,8 +1631,14 @@ function animateMotionMarker(startAbs, endAbs, bend, opts){
   const mid = { x:(startAbs.x+endAbs.x)/2, y:(startAbs.y+endAbs.y)/2 };
   const dx = endAbs.x-startAbs.x, dy = endAbs.y-startAbs.y;
   const len = Math.hypot(dx,dy) || 1;
-  const perpX = -dy/len, perpY = dx/len;
-  const control = { x: mid.x + perpX*90*bend, y: mid.y + perpY*90*bend };
+  let perpX = -dy/len, perpY = dx/len;
+  let control = { x: mid.x + perpX*90*bend, y: mid.y + perpY*90*bend };
+  if(control.y < mid.y){
+    // the bulge swung toward/past the line instead of deeper into the backfield \u2014 flip it
+    perpX = -perpX; perpY = -perpY;
+    control = { x: mid.x + perpX*90*bend, y: mid.y + perpY*90*bend };
+  }
+  if(ly != null) control.y = Math.max(control.y, ly + 4); // hard safety net: the arc can never visually cross the line
 
   if(opts.dotted){
     const oldPath = document.getElementById('motionPathDotted');
@@ -1665,7 +1685,7 @@ function previewMotionAnimation(motionType){
   const startAbs = { x:p.x, y:ly+p.y };
   const endOffset = computeMotionEndpoint(game, motionType, idx, p);
   const endAbs = { x:endOffset.x, y: ly+endOffset.y };
-  animateMotionMarker(startAbs, endAbs, motionBendFor(motionType), { duration:900, dotted:false });
+  animateMotionMarker(startAbs, endAbs, motionBendFor(motionType), { duration:900, dotted:false }, ly);
 }
 
 function replayMotionForDefense(){
@@ -1678,7 +1698,7 @@ function replayMotionForDefense(){
   const startAbs = { x:p.x, y:ly+p.y };
   const endOffset = computeMotionEndpoint(game, game.motionType, idx, p);
   const endAbs = { x:endOffset.x, y: ly+endOffset.y };
-  animateMotionMarker(startAbs, endAbs, motionBendFor(game.motionType), { duration:2200, dotted:true });
+  animateMotionMarker(startAbs, endAbs, motionBendFor(game.motionType), { duration:2200, dotted:true }, ly);
 }
 
 function commitMotionChoice(g, motionType){
@@ -1920,7 +1940,7 @@ function buildPanel(){
       const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
       panel.appendChild(choiceGrid(
         "Hidden from the defence \u2014 pick your play.", false,
-        groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
+        groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom, formationHasBack(game.offKey, game.offCustom)),
         ()=> openEditor('offense','play'), 'Create your own play',
         text=> handleTypedPlay(text, onPick, onPickCustom),
         offCoachTip(game.down, game.distance, game.ballOn)
@@ -1999,7 +2019,7 @@ function buildLocalPanel(phase){
     const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='HANDOFF_TO_DEF'; });
     panel.appendChild(choiceGrid(
       "Hidden from the defence \u2014 pick your play.", false,
-      groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom),
+      groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom, formationHasBack(game.offKey, game.offCustom)),
       ()=> openEditor('offense','play'), 'Create your own play',
       text=> handleTypedPlay(text, onPickOff, onPickOffCustom),
       offCoachTip(game.down, game.distance, game.ballOn)
@@ -2082,7 +2102,7 @@ function buildAIPanel(phase){
     const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
     panel.appendChild(choiceGrid(
       "Pick your play.", false,
-      groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
+      groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom, formationHasBack(game.offKey, game.offCustom)),
       ()=> openEditor('offense','play'), 'Create your own play',
       text=> handleTypedPlay(text, onPick, onPickCustom),
       offCoachTip(game.down, game.distance, game.ballOn)
@@ -2143,7 +2163,7 @@ function aiMaybeAct(){
     } else if(phase==='OFF_MOTION'){
       writeGame(g=>{
         // scout what it's likely to call, and signal jet motion if that leans sweep/reverse
-        const preview = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle);
+        const preview = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle, formationHasBack(g.offKey, g.offCustom));
         const wantsJet = !preview.isCustom && (preview.key==='sweep' || preview.key==='reverse');
         commitMotionChoice(g, wantsJet ? 'jet' : null);
         g.phase='DEF_ADJUST';
@@ -2152,7 +2172,7 @@ function aiMaybeAct(){
       writeGame(g=>{ g.phase='OFF_PLAY'; }); // AI keeps its front; nothing mechanical to gain from changing it
     } else if(phase==='OFF_PLAY'){
       writeGame(g=>{
-        const pick = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle);
+        const pick = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle, formationHasBack(g.offKey, g.offCustom));
         if(pick.isCustom){ g.offPlayKey=CUSTOM; g.offPlayCustom=pick.item; } else { g.offPlayKey=pick.key; g.offPlayCustom=null; }
         g.phase='DEF_CALL';
       });
@@ -2192,10 +2212,19 @@ function defPersonnelOf(key, item, isCustom){
   return `${dl}-${lb}`;
 }
 
-function groupsByCategory(builtinDict, customList, categoryMap, onPick, onPickCustom){
+function groupsByCategory(builtinDict, customList, categoryMap, onPick, onPickCustom, formHasBack){
   return Object.keys(categoryMap).map(catKey=>{
     const entries=[];
-    Object.keys(builtinDict).forEach(k=>{ if(builtinDict[k].category===catKey) entries.push({item:builtinDict[k],isCustom:false,key:k,onClick:()=>onPick(k)}); });
+    Object.keys(builtinDict).forEach(k=>{
+      if(builtinDict[k].category!==catKey) return;
+      const blocked = builtinDict[k].needsBack && formHasBack===false;
+      entries.push({
+        item:builtinDict[k], isCustom:false, key:k,
+        onClick: blocked ? null : ()=>onPick(k),
+        disabled: blocked,
+        disabledReason: blocked ? "Needs a running back in your formation" : null,
+      });
+    });
     (customList||[]).forEach(item=>{ if(item.category===catKey) entries.push({item,isCustom:true,key:item.id,onClick:()=>onPickCustom(item)}); });
     return {heading:categoryMap[catKey], entries};
   }).filter(g=>g.entries.length);
@@ -2282,21 +2311,24 @@ function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHa
     const grid = document.createElement('div'); grid.className='choice-grid';
     grp.entries.forEach(e=>{
       const btn = document.createElement('button');
-      btn.className = 'choice-btn' + (isDef ? ' def' : '');
-      btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.item.note||''}</span>`;
-      btn.onclick = e.onClick;
-      if(previewSide){
-        btn.addEventListener('mouseenter', ()=>{
-          clearTimeout(formationHoverTimer);
-          formationHoverTimer = setTimeout(()=>{
-            startFormationPreview(previewSide, e.isCustom?CUSTOM:e.key, e.isCustom?e.item:null);
-            clearTimeout(formationPreviewEndTimer);
-            formationPreviewEndTimer = setTimeout(()=>{ endFormationPreview(); }, 10000);
-          }, 1000);
-        });
-        btn.addEventListener('mouseleave', ()=>{
-          clearTimeout(formationHoverTimer);
-        });
+      btn.className = 'choice-btn' + (isDef ? ' def' : '') + (e.disabled ? ' disabled-btn' : '');
+      btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.disabled ? e.disabledReason : (e.item.note||'')}</span>`;
+      if(e.disabled){ btn.disabled = true; }
+      else {
+        btn.onclick = e.onClick;
+        if(previewSide){
+          btn.addEventListener('mouseenter', ()=>{
+            clearTimeout(formationHoverTimer);
+            formationHoverTimer = setTimeout(()=>{
+              startFormationPreview(previewSide, e.isCustom?CUSTOM:e.key, e.isCustom?e.item:null);
+              clearTimeout(formationPreviewEndTimer);
+              formationPreviewEndTimer = setTimeout(()=>{ endFormationPreview(); }, 10000);
+            }, 1000);
+          });
+          btn.addEventListener('mouseleave', ()=>{
+            clearTimeout(formationHoverTimer);
+          });
+        }
       }
       if(e.isCustom){
         const cell = document.createElement('div'); cell.className = 'choice-btn-wrap';
