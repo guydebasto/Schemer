@@ -1031,6 +1031,7 @@ async function joinRoom(codeRaw){
   mode = 'online'; roomCode = code; myRole = role; roomMeta = roomObj.meta; game = roomObj.game;
   lsSetJSON(SESSION_KEY, {roomCode, role});
   enterGame();
+  attachRoomListener();
 }
 
 function showJoinError(msg){

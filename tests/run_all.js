@@ -264,6 +264,55 @@ console.log('\n=== 12. Defensive personnel gating (safety-count requirements) ==
   assert(!aiViolated, 'AI never calls a needs-safeties call it lacks bodies for (200 trials)');
 }
 
+console.log('\n=== 13. Online multiplayer: both clients stay in sync (the exact class of bug that shipped) ===');
+{
+  function makeSharedStore(){
+    const store = {}; const listeners = {};
+    function notify(path){ const val = store[path]; (listeners[path]||[]).forEach(cb => cb({ val: () => val })); }
+    return { ref(path){ return {
+      async set(val){ store[path] = JSON.parse(JSON.stringify(val)); notify(path); },
+      async once(){ return { val: () => store[path] }; },
+      on(event, cb){ (listeners[path] = listeners[path]||[]).push(cb); if(store[path]!==undefined) cb({val:()=>store[path]}); },
+      off(){ listeners[path] = []; },
+    }; } };
+  }
+  function makeOnlineWindow(sharedDb){
+    const dom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://example.com/' });
+    const w = dom.window;
+    w.firebase = { initializeApp(){}, database: () => sharedDb };
+    w.firebase.database.ServerValue = { increment: n => ({__inc:n}) };
+    w.prompt = () => 'x'; w.alert = () => {}; w.confirm = () => true;
+    w.eval(appScript + '\nwindow.__getGame=()=>game; window.__getRoomCode=()=>roomCode;');
+    return w;
+  }
+  const sharedDb = makeSharedStore();
+  const A = makeOnlineWindow(sharedDb); // creates room, plays offense
+  const B = makeOnlineWindow(sharedDb); // joins room, plays defense
+
+  await A.createRoom('offense', false);
+  await new Promise(r=>setTimeout(r,30));
+  const roomCode = A.__getRoomCode();
+  await B.joinRoom(roomCode);
+  await new Promise(r=>setTimeout(r,30));
+
+  A.writeGame(g=>{ g.offKey='singleback'; g.offCustom=null; g.phase='DEF_FRONT'; });
+  await new Promise(r=>setTimeout(r,50));
+  B.writeGame(g=>{ g.defFrontKey='base43'; g.defFrontCustom=null; g.phase='OFF_MOTION'; });
+  await new Promise(r=>setTimeout(r,50));
+  A.writeGame(g=>{ A.commitMotionChoice(g, null); g.phase='DEF_ADJUST'; });
+  await new Promise(r=>setTimeout(r,50));
+  B.writeGame(g=>{ g.phase='OFF_PLAY'; });
+  await new Promise(r=>setTimeout(r,50));
+  A.writeGame(g=>{ g.offPlayKey='insideRun'; g.offPlayCustom=null; g.phase='DEF_CALL'; });
+  await new Promise(r=>setTimeout(r,80));
+
+  assert(A.__getGame().phase === 'DEF_CALL' && B.__getGame().phase === 'DEF_CALL',
+    'both clients see the same phase after the full sequence of alternating writes',
+    `A=${A.__getGame().phase} B=${B.__getGame().phase}`);
+  const bPanel = B.document.getElementById('panel').innerHTML;
+  assert(bPanel.includes('Hidden from the offence'), 'the joining player (B) actually sees their DEF_CALL screen, not stuck waiting');
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed > 0 ? 1 : 0);
 
