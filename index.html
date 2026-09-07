@@ -387,27 +387,27 @@ const plays = {
   sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run', needsBack:true },
   quickPass:      { name:"Slants",          note:"Everyone cuts inside on a sharp, quick angle \u2014 beats soft zone before it can react, but a jumped route against press coverage gets picked off clean.",
     xTarget:350, bend:0.25, category:'pass',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:-side*45, dy:-52 }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-16}, brk:{dx:-side*42,dy:-38} }; } },
   playActionDeep: { name:"PA Deep Post",    note:"Sell the run fake, then break the post over the top of it.",           xTarget:390, bend:0.3,  category:'playAction', needsBack:true,
-    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:-side*55, dy:-88 }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-58}, brk:{dx:-side*42,dy:-38} }; } },
   screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass' },
   draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true },
   deepPass:       { name:"Four Verticals",  note:"All four eligible receivers take it straight up the field \u2014 stretches a single deep safety thin, but a two-deep shell has the numbers to match every route.",
     xTarget:355, bend:0.15, category:'deep',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:side*8, dy:-98 }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*4,dy:-66}, brk:{dx:side*4,dy:-32} }; } },
   reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run', needsBack:true },
   stick:          { name:"Stick",           note:"Settle into the soft spot underneath, with a receiver in the flat for the quick check-down \u2014 gets the ball out before pressure ever arrives.",
     xTarget:400, bend:0.35, category:'pass',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:side*10, dy:-48} : {dx:side*45, dy:-20}; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-46}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-10}, brk:{dx:side*40,dy:-10} }; } },
   flood:          { name:"Flood",           note:"Three receivers stack one side at three different depths \u2014 overloads whoever's covering that zone, but man coverage just runs with each of them individually.",
     xTarget:480, bend:0.6, category:'pass',
-    routes:(p,i)=>{ const depths=[-32,-62,-92]; return { dx:70, dy:depths[i%3] }; } },
+    routes:(p,i)=>{ const shapes=[{stem:{dx:20,dy:-16},brk:{dx:40,dy:-8}},{stem:{dx:15,dy:-45},brk:{dx:45,dy:-20}},{stem:{dx:10,dy:-70},brk:{dx:55,dy:-30}}]; return shapes[i%3]; } },
   mesh:           { name:"Mesh",            note:"Two routes cross shallow underneath \u2014 the pick is basically built in against man coverage, though zone defenders just pass receivers off through it.",
     xTarget:350, bend:0.3, category:'pass',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:-side*95, dy:-40 }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:-side*20,dy:-22}, brk:{dx:-side*75,dy:-18} }; } },
   smash:          { name:"Smash",           note:"A quick hitch underneath, a corner route over the top \u2014 a classic high-low read that punishes a two-deep flat defender.",
     xTarget:460, bend:0.55, category:'pass',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:side*10, dy:-24} : {dx:side*70, dy:-75}; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:side*6,dy:-22}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-55}, brk:{dx:side*58,dy:-24} }; } },
   power:          { name:"Power",           note:"A guard pulls across the formation to lead through the hole \u2014 a physical, downhill gap scheme.", xTarget:300, bend:0.15, category:'run', needsBack:true },
   counter:        { name:"Counter",         note:"The backfield flows one way, then the ball cuts back against the grain \u2014 misdirection with real power behind it.", xTarget:480, bend:0.55, category:'run', needsBack:true },
   zoneRead:       { name:"Zone Read",       note:"The quarterback reads the unblocked end \u2014 hand it off, or keep it himself if the end crashes down.", xTarget:420, bend:0.4, category:'run', needsBack:true },
@@ -415,19 +415,19 @@ const plays = {
   trap:           { name:"Trap",            note:"Let a defensive lineman charge upfield untouched, then trap-block him from the side \u2014 he takes himself out of the play.", xTarget:300, bend:0.1, category:'run', needsBack:true },
   curlFlat:       { name:"Curl-Flat",       note:"A curl settling in underneath, a flat route stretching outside it \u2014 a bread-and-butter zone-beater on the perimeter.",
     xTarget:440, bend:0.4, category:'pass',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:-side*20, dy:-45} : {dx:side*50, dy:-15}; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-48}, brk:{dx:side*8,dy:10} } : { stem:{dx:0,dy:-12}, brk:{dx:side*46,dy:-10} }; } },
   dagger:         { name:"Dagger",          note:"A deep dig sits down in the middle behind a clearing vertical route \u2014 the vertical pulls coverage away and opens the window for the dig.",
     xTarget:380, bend:0.3, category:'deep',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:-side*70, dy:-75} : {dx:side*5, dy:-95}; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-68}, brk:{dx:-side*58,dy:-14} } : { stem:{dx:side*6,dy:-70}, brk:{dx:0,dy:-20} }; } },
   hitch:          { name:"Hitch",           note:"Everyone stops short and turns back to the quarterback \u2014 low risk, quick and simple, but rarely a big gain.",
     xTarget:400, bend:0.2, category:'pass',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:side*5, dy:-38 }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*5,dy:-36}, brk:{dx:0,dy:4} }; } },
   fade:           { name:"Fade",            note:"A go route with a lean toward the sideline \u2014 a back-shoulder shot that lets the receiver adjust away from tight coverage.",
     xTarget:480, bend:0.35, category:'deep',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:side*25, dy:-92 }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*10,dy:-70}, brk:{dx:side*18,dy:-24} }; } },
   paBootleg:      { name:"PA Bootleg",      note:"Fake the handoff, then roll out away from the flow \u2014 buys the quarterback a clean look at routes breaking toward the edge he's rolling to.",
     xTarget:420, bend:0.4, category:'playAction', needsBack:true,
-    routes:(p,i)=>{ return { dx:40, dy:-55-(i%3)*10 }; } },
+    routes:(p,i)=>{ return { stem:{dx:10,dy:-20-(i%3)*8}, brk:{dx:32,dy:-28-(i%3)*6} }; } },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
 
@@ -1641,32 +1641,58 @@ function synthesizeRouteOffset(startPt, category, seedIndex){
   return { dx: lateral, dy: -forward - (seedIndex%3)*6 };
 }
 
-function routeOffsetFor(play, p, i){
+function routeRawFor(play, p, i){
   if(typeof play.routes === 'function') return play.routes(p, i);
   if(play.routes && play.routes[i]) return play.routes[i];
   return synthesizeRouteOffset(p, play.category, i);
 }
 
+function clampRoutePoint(pt, ly){
+  return { x: Math.max(48, Math.min(592, pt.x)), y: Math.min(ly, pt.y) };
+}
+
+// Returns {start, mid, end} for each receiver. mid is null for a simple straight route (one
+// segment \u2014 custom user-drawn routes, and the generic synthesized fallback), or a real
+// waypoint for a proper two-segment route (a stem, then a break) on our named plays.
 function routeEndpointsFor(play, offKey, offCustom, ly){
   const pts = offensePoints(offKey, offCustom);
   const list = [];
   for(let i=5; i<pts.length; i++){
     const p = pts[i];
     const start = { x:p.x, y: ly+p.y };
-    const offset = routeOffsetFor(play, p, i);
-    const end = {
-      x: Math.max(48, Math.min(592, start.x + offset.dx)),
-      y: Math.min(ly, start.y + offset.dy), // routes run upfield, never backward past the snap depth
-    };
-    list.push({ start, end });
+    const raw = routeRawFor(play, p, i);
+    let mid = null, end;
+    if(raw && (raw.stem || raw.brk)){
+      const stem = raw.stem || {dx:0,dy:0}, brk = raw.brk || {dx:0,dy:0};
+      mid = clampRoutePoint({ x: start.x + stem.dx, y: start.y + stem.dy }, ly);
+      end = clampRoutePoint({ x: mid.x + brk.dx, y: mid.y + brk.dy }, ly);
+    } else {
+      end = clampRoutePoint({ x: start.x + raw.dx, y: start.y + raw.dy }, ly);
+    }
+    list.push({ start, mid, end });
   }
   return list;
+}
+
+// Constant-speed position along a 1- or 2-segment route path at progress t (0..1).
+function pointAlongRoute(start, mid, end, t){
+  if(!mid) return { x: start.x + (end.x-start.x)*t, y: start.y + (end.y-start.y)*t };
+  const d1 = Math.hypot(mid.x-start.x, mid.y-start.y);
+  const d2 = Math.hypot(end.x-mid.x, end.y-mid.y);
+  const total = d1+d2 || 1;
+  const dist = t*total;
+  if(dist <= d1){
+    const tt = d1 ? dist/d1 : 0;
+    return { x: start.x+(mid.x-start.x)*tt, y: start.y+(mid.y-start.y)*tt };
+  }
+  const tt = d2 ? (dist-d1)/d2 : 0;
+  return { x: mid.x+(end.x-mid.x)*tt, y: mid.y+(end.y-mid.y)*tt };
 }
 
 function buildRouteAnimators(dyn, ly, play, offKey, offCustom){
   const endpoints = routeEndpointsFor(play, offKey, offCustom, ly);
   const animators = [];
-  endpoints.forEach(({start,end})=>{
+  endpoints.forEach(({start,mid,end})=>{
     const marker = makeMarker(start.x, start.y, 'X', 'var(--gold-dim)', false, 0);
     const lines = marker.querySelectorAll('line');
     lines.forEach(l=> l.setAttribute('stroke-width', 2));
@@ -1675,7 +1701,7 @@ function buildRouteAnimators(dyn, ly, play, offKey, offCustom){
       x2:parseFloat(l.getAttribute('x2')), y2:parseFloat(l.getAttribute('y2')),
     }));
     dyn.appendChild(marker);
-    animators.push({ start, end, lines, offsets });
+    animators.push({ start, mid, end, lines, offsets });
   });
   return animators;
 }
@@ -1739,8 +1765,8 @@ function drawPlayResult(dyn, ly, animate){
 
     const routeT = easeOutCubic(ballT);
     routeAnimators.forEach(a=>{
-      const rx = a.start.x + (a.end.x-a.start.x)*routeT, ry = a.start.y + (a.end.y-a.start.y)*routeT;
-      const rdx = rx-a.start.x, rdy = ry-a.start.y;
+      const pos = pointAlongRoute(a.start, a.mid, a.end, routeT);
+      const rdx = pos.x-a.start.x, rdy = pos.y-a.start.y;
       a.lines.forEach((l,i)=> setAttrs(l, {x1:a.offsets[i].x1+rdx, y1:a.offsets[i].y1+rdy, x2:a.offsets[i].x2+rdx, y2:a.offsets[i].y2+rdy}));
     });
 
@@ -1886,11 +1912,29 @@ function previewPlayRoutes(play){
   clearPlayRoutePreview();
   const endpoints = routeEndpointsFor(play, game.offKey, game.offCustom, ly);
   const group = el('g', {id:'playRoutePreview'});
-  endpoints.forEach(({start,end})=>{
-    group.appendChild(el('line', {x1:start.x,y1:start.y,x2:end.x,y2:end.y, stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'4,4', opacity:'0.85'}));
-    group.appendChild(el('circle', {cx:end.x,cy:end.y,r:4, fill:'var(--gold)'}));
+  const runners = [];
+  endpoints.forEach(({start,mid,end})=>{
+    const d = mid ? `M ${start.x} ${start.y} L ${mid.x} ${mid.y} L ${end.x} ${end.y}` : `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+    group.appendChild(el('path', {d, stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'4,4', opacity:'0.7', fill:'none'}));
+    group.appendChild(el('circle', {cx:end.x,cy:end.y,r:4, fill:'var(--gold)', opacity:'0.7'}));
+    const runner = el('circle', {cx:start.x, cy:start.y, r:5, fill:'var(--gold)'});
+    group.appendChild(runner);
+    runners.push({ start, mid, end, runner });
   });
   dyn.appendChild(group);
+
+  const DURATION = 1400;
+  const t0 = performance.now();
+  function frame(now){
+    if(!document.getElementById('playRoutePreview')) return; // preview was cleared \u2014 stop looping
+    const t = ((now-t0) % DURATION) / DURATION;
+    runners.forEach(r=>{
+      const pos = pointAlongRoute(r.start, r.mid, r.end, t);
+      r.runner.setAttribute('cx', pos.x); r.runner.setAttribute('cy', pos.y);
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 function clearPlayRoutePreview(){
   const old = document.getElementById('playRoutePreview');
@@ -3105,10 +3149,12 @@ function renderInlineEditor(){
   return wrap;
 }
 
+let playPreviewGen = 0;
 function renderPlayPreviewSvg(playObj){
   const container = document.getElementById('playcallPreviewSvg');
   const label = document.getElementById('playcallPreviewLabel');
   if(!container) return;
+  const myGen = ++playPreviewGen;
   container.innerHTML = '';
   const ly = EDITOR_LOS_Y;
   const svg = el('svg', {viewBox:`0 ${ly-140} 640 190`, xmlns:svgNS, style:'width:100%;height:auto;display:block;'});
@@ -3118,12 +3164,30 @@ function renderPlayPreviewSvg(playObj){
   pts.forEach((p,i)=>{
     svg.appendChild(makeMarker(p.x, ly+p.y, i===2?'square':'X', 'var(--gold)', false, i));
   });
-  routeEndpointsFor(playObj, 'singleback', null, ly).forEach(({start,end})=>{
-    svg.appendChild(el('line',{x1:start.x,y1:start.y,x2:end.x,y2:end.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'4,4',opacity:'0.9'}));
-    svg.appendChild(el('circle',{cx:end.x,cy:end.y,r:4,fill:'var(--gold)'}));
+  const runners = [];
+  routeEndpointsFor(playObj, 'singleback', null, ly).forEach(({start,mid,end})=>{
+    const d = mid ? `M ${start.x} ${start.y} L ${mid.x} ${mid.y} L ${end.x} ${end.y}` : `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+    svg.appendChild(el('path',{d,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'4,4',opacity:'0.7', fill:'none'}));
+    svg.appendChild(el('circle',{cx:end.x,cy:end.y,r:4,fill:'var(--gold)',opacity:'0.7'}));
+    const runner = el('circle',{cx:start.x,cy:start.y,r:5,fill:'var(--gold)'});
+    svg.appendChild(runner);
+    runners.push({ start, mid, end, runner });
   });
   container.appendChild(svg);
   if(label) label.textContent = playObj.name + ' \u2014 shown against a Singleback look';
+
+  const DURATION = 1400;
+  const t0 = performance.now();
+  function frame(now){
+    if(playPreviewGen !== myGen) return; // a newer preview replaced this one \u2014 stop looping
+    const t = ((now-t0) % DURATION) / DURATION;
+    runners.forEach(r=>{
+      const pos = pointAlongRoute(r.start, r.mid, r.end, t);
+      r.runner.setAttribute('cx', pos.x); r.runner.setAttribute('cy', pos.y);
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 
 function playcallReferenceCard(){

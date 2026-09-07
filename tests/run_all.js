@@ -38,7 +38,7 @@ function freshWindow(extra){
       formations, fronts, plays, calls, outcomes, categoryMatrix, formationHasBack,
       motionManIndex, motionFinalPosFor, resolveMotionCollision, commitMotionChoice,
       offensePoints, defensePoints, losY, routeEndpointsFor, resolvePlay, freshGame,
-      aiPickPlay, aiPickCall, frontSafetyCount,
+      aiPickPlay, aiPickCall, frontSafetyCount, pointAlongRoute,
       applyMotionToPlay: typeof applyMotionToPlay!=='undefined'?applyMotionToPlay:null,
     };
     ${extra||''}
@@ -335,6 +335,31 @@ console.log('\n=== 14. Feedback submits directly to Firebase, no email required 
   assert(writes[0] && writes[0].val && writes[0].val.message === 'Test feedback message', 'the submitted message is captured correctly');
   const status = w.document.getElementById('feedbackStatus');
   assert(!!status && status.textContent.includes('Sent'), 'the user sees a confirmation after sending');
+}
+
+console.log('\n=== 15. Route shapes are real two-segment paths, and the preview animates fluidly ===');
+{
+  const { w } = freshWindow();
+  const { plays, routeEndpointsFor, losY, pointAlongRoute } = w.__exports;
+  const ly = losY(50);
+  let sawMultiSegment = false;
+  ['quickPass','smash','dagger','mesh','curlFlat'].forEach(k=>{
+    const eps = routeEndpointsFor(plays[k], 'singleback', null, ly);
+    if(eps.some(e => e.mid)) sawMultiSegment = true;
+  });
+  assert(sawMultiSegment, 'named pass plays produce real stem-then-break route shapes, not single straight lines');
+
+  const eps = routeEndpointsFor(plays.dagger, 'singleback', null, ly);
+  const r = eps.find(e => e.mid);
+  assert(!!r, 'Dagger has at least one multi-segment route to test the animation against');
+  if(r){
+    const p0 = pointAlongRoute(r.start, r.mid, r.end, 0);
+    const p50 = pointAlongRoute(r.start, r.mid, r.end, 0.5);
+    const p100 = pointAlongRoute(r.start, r.mid, r.end, 1);
+    assert(p0.x===r.start.x && p0.y===r.start.y, 'route animation starts exactly at the receiver\u2019s position');
+    assert(p100.x===r.end.x && p100.y===r.end.y, 'route animation ends exactly at the route\u2019s final point');
+    assert(p50.x!==p0.x || p50.y!==p0.y, 'route animation actually moves partway through, not a static jump');
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);
