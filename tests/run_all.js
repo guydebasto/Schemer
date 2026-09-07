@@ -38,7 +38,7 @@ function freshWindow(extra){
       formations, fronts, plays, calls, outcomes, categoryMatrix, formationHasBack,
       motionManIndex, motionFinalPosFor, resolveMotionCollision, commitMotionChoice,
       offensePoints, defensePoints, losY, routeEndpointsFor, resolvePlay, freshGame,
-      aiPickPlay, aiPickCall, frontSafetyCount, pointAlongRoute,
+      aiPickPlay, aiPickCall, frontSafetyCount, pointAlongRoute, playStrengthHint, callStrengthHint,
       applyMotionToPlay: typeof applyMotionToPlay!=='undefined'?applyMotionToPlay:null,
     };
     ${extra||''}
@@ -413,6 +413,34 @@ console.log('\n=== 17. Custom route drawing supports a real stem-then-break shap
   const eps = routeEndpointsFor({routes: ed.routes}, 'singleback', null, losY(50));
   const r7 = eps[2];
   assert(!!r7.mid, 'the drawn route resolves to a path with a real break point, matching the built-in named plays');
+}
+
+console.log('\n=== 18. "What beats this" strength hints ===');
+{
+  const { w } = freshWindow();
+  const smashHint = w.__exports.playStrengthHint('smash');
+  assert(!!smashHint && smashHint.includes('Cover 2'), 'Smash correctly identifies Cover 2 as its best matchup', smashHint);
+  const cover2Hint = w.__exports.callStrengthHint('cover2');
+  assert(!!cover2Hint && cover2Hint.includes('Smash'), 'Cover 2 correctly identifies Smash as its worst matchup', cover2Hint);
+}
+
+console.log('\n=== 19. Reference page search filters correctly ===');
+{
+  const { w } = freshWindow();
+  await new Promise(r=>setTimeout(r,100));
+  w.goToScreen('editor');
+  await new Promise(r=>setTimeout(r,30)); // let the rAF-deferred oninput binding fire
+  const search = w.document.getElementById('playcallSearch');
+  assert(!!search, 'search input exists on the reference page');
+  search.value = 'smash';
+  search.dispatchEvent(new w.Event('input'));
+  const items = [...w.document.querySelectorAll('[data-search]')];
+  const visible = items.filter(el => el.style.display !== 'none');
+  assert(visible.length === 1 && visible[0].dataset.search.startsWith('smash'), 'searching "smash" shows exactly the Smash entry', visible.map(v=>v.dataset.search.slice(0,20)));
+  search.value = '';
+  search.dispatchEvent(new w.Event('input'));
+  const visibleAfterClear = items.filter(el => el.style.display !== 'none');
+  assert(visibleAfterClear.length === 40, 'clearing the search restores all 40 entries', visibleAfterClear.length);
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

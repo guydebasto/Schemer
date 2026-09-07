@@ -106,6 +106,7 @@
   .choice-btn:hover{border-color:var(--gold);background:rgba(232,196,104,0.06);}
   .choice-btn .name{display:block;font-weight:700;font-size:14px;margin-bottom:4px;}
   .choice-btn .desc{display:block;font-size:12px;color:var(--chalk-dim);line-height:1.4;}
+  .choice-btn .strength-hint{display:block;font-size:11px;color:var(--gold);opacity:0.85;margin-top:3px;font-style:italic;}
   .choice-btn.def:hover{border-color:var(--brick);background:rgba(193,80,63,0.08);}
   .choice-btn.disabled-btn{ opacity:0.4; cursor:not-allowed; }
   .choice-btn.disabled-btn:hover{ border-color:var(--board-line); background:transparent; }
@@ -2560,6 +2561,33 @@ function inferRemoveKind(isDef, previewSide){
   return isDef ? 'defCall' : 'offPlay';
 }
 
+function playStrengthHint(playKey){
+  const table = outcomes[playKey];
+  if(!table) return null;
+  const entries = Object.keys(table).map(callKey=>({callKey, yards:table[callKey].yards}));
+  if(entries.length < 2) return null;
+  entries.sort((a,b)=>b.yards-a.yards);
+  const best = entries[0], worst = entries[entries.length-1];
+  if(best.yards <= worst.yards) return null;
+  const bestName = calls[best.callKey] ? calls[best.callKey].name : best.callKey;
+  const worstName = calls[worst.callKey] ? calls[worst.callKey].name : worst.callKey;
+  return `Beats: ${bestName} \u00b7 Struggles vs: ${worstName}`;
+}
+
+function callStrengthHint(callKey){
+  const matches = [];
+  Object.keys(outcomes).forEach(playKey=>{
+    if(outcomes[playKey][callKey] != null) matches.push({playKey, yards:outcomes[playKey][callKey].yards});
+  });
+  if(matches.length < 2) return null;
+  matches.sort((a,b)=>a.yards-b.yards);
+  const best = matches[0], worst = matches[matches.length-1];
+  if(best.yards >= worst.yards) return null;
+  const bestName = plays[best.playKey] ? plays[best.playKey].name : best.playKey;
+  const worstName = plays[worst.playKey] ? plays[worst.playKey].name : worst.playKey;
+  return `Shuts down: ${bestName} \u00b7 Vulnerable to: ${worstName}`;
+}
+
 function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText, previewSide, routePreview){
   const removeKind = inferRemoveKind(isDef, previewSide);
   const wrap = document.createElement('div');
@@ -2606,7 +2634,12 @@ function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHa
     grp.entries.forEach(e=>{
       const btn = document.createElement('button');
       btn.className = 'choice-btn' + (isDef ? ' def' : '') + (e.disabled ? ' disabled-btn' : '');
-      btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.disabled ? e.disabledReason : (e.item.note||'')}</span>`;
+      let hint = '';
+      if(!e.isCustom && !e.disabled && (removeKind==='offPlay' || removeKind==='defCall')){
+        const h = removeKind==='offPlay' ? playStrengthHint(e.key) : callStrengthHint(e.key);
+        if(h) hint = `<span class="strength-hint">${h}</span>`;
+      }
+      btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.disabled ? e.disabledReason : (e.item.note||'')}</span>${hint}`;
       if(e.disabled){ btn.disabled = true; }
       else {
         btn.onclick = e.onClick;
@@ -3214,10 +3247,11 @@ function playcallReferenceCard(){
   const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left'; c.style.marginTop='16px';
   c.innerHTML = `<h2 style="text-align:center;">All Playcalls</h2>
     <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created. Tap an offensive play to see it run.</p>
+    <input class="ed-input" id="playcallSearch" type="text" placeholder="Search plays and calls\u2026" style="width:100%;margin-bottom:12px;">
     <div id="playcallPreviewLabel" class="sub" style="text-align:center;min-height:16px;"></div>
     <div id="playcallPreviewSvg" class="ed-canvas-wrap" style="margin-bottom:14px;"></div>`;
 
-  const renderSide = (label, builtinDict, customList, categoryMap, removeKind, clickable)=>{
+  const renderSide = (label, builtinDict, customList, categoryMap, removeKind, clickable, hintFn)=>{
     const h = document.createElement('h2'); h.style.textAlign='center'; h.textContent = label;
     c.appendChild(h);
     Object.keys(categoryMap).forEach(catKey=>{
@@ -3230,12 +3264,15 @@ function playcallReferenceCard(){
       built.forEach(k=>{
         const item = document.createElement('div'); item.className='choice-btn';
         item.style.cursor = clickable ? 'pointer' : 'default';
-        item.innerHTML = `<span class="name">${builtinDict[k].name}</span><span class="desc">${builtinDict[k].note||''}</span>`;
+        item.dataset.search = (builtinDict[k].name + ' ' + (builtinDict[k].note||'')).toLowerCase();
+        const hint = hintFn ? hintFn(k) : null;
+        item.innerHTML = `<span class="name">${builtinDict[k].name}</span><span class="desc">${builtinDict[k].note||''}</span>${hint?`<span class="strength-hint">${hint}</span>`:''}`;
         if(clickable) item.onclick = ()=> renderPlayPreviewSvg(builtinDict[k]);
         grid.appendChild(item);
       });
       custom.forEach(item=>{
         const cell = document.createElement('div'); cell.className='choice-btn-wrap';
+        cell.dataset.search = (item.name + ' ' + (item.note||'')).toLowerCase();
         const btn = document.createElement('div'); btn.className='choice-btn';
         btn.style.cursor = clickable ? 'pointer' : 'default';
         btn.innerHTML = `<span class="name">${item.name} <span class="custom-pill">yours</span></span><span class="desc">${item.note||''}</span>`;
@@ -3256,9 +3293,26 @@ function playcallReferenceCard(){
       c.appendChild(grid);
     });
   };
-  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay', true);
+  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay', true, playStrengthHint);
   const divider = document.createElement('div'); divider.className='divider'; c.appendChild(divider);
-  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall', false);
+  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall', false, callStrengthHint);
+
+  requestAnimationFrame(()=>{
+    const search = document.getElementById('playcallSearch');
+    if(!search) return;
+    search.oninput = ()=>{
+      const q = search.value.trim().toLowerCase();
+      c.querySelectorAll('[data-search]').forEach(el=>{
+        el.style.display = (!q || el.dataset.search.includes(q)) ? '' : 'none';
+      });
+      c.querySelectorAll('.choice-grid').forEach(grid=>{
+        const anyVisible = [...grid.children].some(child=> child.style.display !== 'none');
+        grid.style.display = anyVisible ? '' : 'none';
+        const heading = grid.previousElementSibling;
+        if(heading && heading.classList.contains('cat-heading')) heading.style.display = anyVisible ? '' : 'none';
+      });
+    };
+  });
   return c;
 }
 
