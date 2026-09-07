@@ -408,6 +408,26 @@ const plays = {
   smash:          { name:"Smash",           note:"A quick hitch underneath, a corner route over the top \u2014 a classic high-low read that punishes a two-deep flat defender.",
     xTarget:460, bend:0.55, category:'pass',
     routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:side*10, dy:-24} : {dx:side*70, dy:-75}; } },
+  power:          { name:"Power",           note:"A guard pulls across the formation to lead through the hole \u2014 a physical, downhill gap scheme.", xTarget:300, bend:0.15, category:'run', needsBack:true },
+  counter:        { name:"Counter",         note:"The backfield flows one way, then the ball cuts back against the grain \u2014 misdirection with real power behind it.", xTarget:480, bend:0.55, category:'run', needsBack:true },
+  zoneRead:       { name:"Zone Read",       note:"The quarterback reads the unblocked end \u2014 hand it off, or keep it himself if the end crashes down.", xTarget:420, bend:0.4, category:'run', needsBack:true },
+  toss:           { name:"Toss",            note:"A fast pitch to the edge before the defense can flow \u2014 even wider and quicker to develop than a sweep.", xTarget:588, bend:0.9, category:'run', needsBack:true },
+  trap:           { name:"Trap",            note:"Let a defensive lineman charge upfield untouched, then trap-block him from the side \u2014 he takes himself out of the play.", xTarget:300, bend:0.1, category:'run', needsBack:true },
+  curlFlat:       { name:"Curl-Flat",       note:"A curl settling in underneath, a flat route stretching outside it \u2014 a bread-and-butter zone-beater on the perimeter.",
+    xTarget:440, bend:0.4, category:'pass',
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:-side*20, dy:-45} : {dx:side*50, dy:-15}; } },
+  dagger:         { name:"Dagger",          note:"A deep dig sits down in the middle behind a clearing vertical route \u2014 the vertical pulls coverage away and opens the window for the dig.",
+    xTarget:380, bend:0.3, category:'deep',
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:-side*70, dy:-75} : {dx:side*5, dy:-95}; } },
+  hitch:          { name:"Hitch",           note:"Everyone stops short and turns back to the quarterback \u2014 low risk, quick and simple, but rarely a big gain.",
+    xTarget:400, bend:0.2, category:'pass',
+    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:side*5, dy:-38 }; } },
+  fade:           { name:"Fade",            note:"A go route with a lean toward the sideline \u2014 a back-shoulder shot that lets the receiver adjust away from tight coverage.",
+    xTarget:480, bend:0.35, category:'deep',
+    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:side*25, dy:-92 }; } },
+  paBootleg:      { name:"PA Bootleg",      note:"Fake the handoff, then roll out away from the flow \u2014 buys the quarterback a clean look at routes breaking toward the edge he's rolling to.",
+    xTarget:420, bend:0.4, category:'playAction', needsBack:true,
+    routes:(p,i)=>{ return { dx:40, dy:-55-(i%3)*10 }; } },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
 
@@ -432,6 +452,13 @@ const calls = {
   cover2:      { name:"Cover 2",       note:"Two safeties split the deep field, corners jam at the line \u2014 nothing gets behind them, but the middle and flats are there underneath.", category:'passD', needsSafeties:2 },
   quarters:    { name:"Cover 4",       note:"Four defenders spread across the deep field and pattern-match the routes \u2014 shuts down verticals, tight on anything toward the numbers.", category:'passD', needsSafeties:2 },
   tampa2:      { name:"Tampa 2",       note:"Same shell as Cover 2, but the middle linebacker drops into the deep middle hole \u2014 covers the one gap Cover 2 leaves open, at the cost of the underneath middle.", category:'passD', needsSafeties:2 },
+  cover6:      { name:"Cover 6",       note:"Quarters coverage to one side, two-deep to the other \u2014 a split-field shell that leans on whichever side the formation strength dictates.", category:'passD', needsSafeties:2 },
+  robber:      { name:"Robber",        note:"A single deep safety, but he's not just sitting back \u2014 he's reading the quarterback's eyes and robbing the first in-breaking route he sees.", category:'passD' },
+  cloud:       { name:"Cloud Coverage", note:"A Cover 3 look, but the corner rolls up to take the flat instead of the deep third \u2014 squeezes the short passing game on that side.", category:'passD' },
+  mikeBlitz:   { name:"Mike Blitz",    note:"The middle linebacker shoots a gap right up the pipe \u2014 quick, direct pressure through the center of the formation.", category:'blitz' },
+  nickelBlitz: { name:"Nickel Blitz",  note:"The slot corner comes off the edge untouched \u2014 an angle most protections never account for.", category:'blitz' },
+  doubleAGap:  { name:"Double A-Gap Blitz", note:"Both inside linebackers walk up into the A-gaps before the snap \u2014 the center has to guess which one is actually coming.", category:'blitz' },
+  bracket:     { name:"Bracket Coverage", note:"Two defenders team up on the same receiver, one underneath and one over the top \u2014 takes their best target away, one-on-one somewhere else.", category:'passD' },
 };
 const CALL_CATEGORIES = { runD:'Run D', passD:'Pass D', blitz:'Blitz' };
 
@@ -554,6 +581,73 @@ const outcomes = {
     quarters:    {yards:3,  text:"The pattern-matching corner passes the hitch off underneath and stays on top of the corner route the whole way.", role:'CB'},
     manPress:    {yards:5,  text:"Straight man coverage on both routes \u2014 no zone conflict to exploit, just a footrace.", role:'CB'},
     allOutBlitz: {yards:9,  text:"Whoever's left in coverage has to choose \u2014 the underneath blitz can't affect either route at all.", role:'S'},
+  },
+  insideRun: {
+    mikeBlitz:   {yards:-1, text:"The Mike shoots the exact gap this play is trying to hit \u2014 met at the line before it ever develops.", role:'LB'},
+    doubleAGap:  {yards:0,  text:"Both A-gaps were already occupied before the snap \u2014 there's nowhere inside to go.", role:'LB'},
+  },
+  draw: {
+    doubleAGap:  {yards:11, text:"Both linebackers blitz straight through and vacate the exact lanes the draw wants \u2014 a wide-open cutback lane.", role:'DL', breakaway:true},
+    mikeBlitz:   {yards:-2, text:"The Mike is already blitzing through the same lane the draw is designed to hit \u2014 met immediately.", role:'LB'},
+  },
+  screen: {
+    nickelBlitz: {yards:14, text:"The slot blitzer flies upfield right past the screen \u2014 the blockers get a free release the other way.", role:'CB', breakaway:true},
+  },
+  mesh: {
+    robber:      {yards:1,  text:"The robber is sitting on exactly this kind of shallow crosser \u2014 jumped and broken up before it can develop.", role:'S'},
+  },
+  power: {
+    runBlitz:    {yards:3,  text:"The blitzer meets the puller in the hole \u2014 a physical stalemate for a modest gain.", role:'LB'},
+    allOutBlitz: {yards:12, text:"The extra rusher just gives the puller one more body to clear out \u2014 numbers still favor the gap scheme.", role:'DL', breakaway:true},
+    spyDraw:     {yards:2,  text:"The spy is sitting right in the hole the puller is aiming for.", role:'LB'},
+    prevent:     {yards:10, text:"Almost nobody is left in the box \u2014 the puller has a free runway.", role:'LB'},
+  },
+  counter: {
+    runBlitz:    {yards:12, text:"The blitz flows hard toward the fake \u2014 the ball's already going back the other way with numbers.", role:'LB', breakaway:true},
+    allOutBlitz: {yards:16, text:"Every single defender bites on the initial flow \u2014 the counter has the backside all to itself.", role:'S', breakaway:true},
+    spyDraw:     {yards:0,  text:"The spy reads backfield flow for exactly this kind of misdirection \u2014 met immediately, no gain.", role:'LB'},
+    doubleAGap:  {yards:8,  text:"Both linebackers were already committed pre-snap and can't redirect \u2014 the counter finds a clean lane.", role:'LB'},
+  },
+  zoneRead: {
+    contain:     {yards:1,  text:"Disciplined contain is exactly what breaks a zone read \u2014 the edge stays home no matter which way the quarterback goes.", role:'DL'},
+    spyDraw:     {yards:0,  text:"The spy is reading the quarterback's eyes, not the handoff \u2014 both options are covered.", role:'LB'},
+    runBlitz:    {yards:6,  text:"The blitzer takes himself out of the read entirely \u2014 the quarterback just goes the other way.", role:'LB'},
+  },
+  toss: {
+    contain:     {yards:3,  text:"Contain strings it all the way to the sideline before it can turn upfield.", role:'DL'},
+    allOutBlitz: {yards:14, text:"Everybody's crashing inside \u2014 the edge is completely uncontested.", role:'S', breakaway:true},
+    runBlitz:    {yards:8,  text:"The extra rusher crashes inside and never touches the edge at all.", role:'LB'},
+  },
+  trap: {
+    stunt:       {yards:0,  text:"The stunting lineman isn't where the trap block expects him to be \u2014 the whole scheme collapses.", role:'DL'},
+    allOutBlitz: {yards:-2, text:"Too many extra rushers to trap-block \u2014 the numbers overwhelm the scheme.", role:'DL'},
+    runBlitz:    {yards:2,  text:"The trap picks up the blitzer clean, but there's still a crowd waiting behind him.", role:'LB'},
+  },
+  curlFlat: {
+    cover2:      {yards:11, text:"Exactly the conflict this route combo hunts for \u2014 the flat defender can't cover both levels.", role:'CB'},
+    cloud:       {yards:2,  text:"The corner rolled up specifically to take away the flat \u2014 the whole combo is squeezed before it starts.", role:'CB'},
+    zoneDrop:    {yards:6,  text:"The curl settles into the soft spot between zones \u2014 a comfortable completion underneath.", role:'LB'},
+  },
+  dagger: {
+    manPress:    {yards:13, text:"The clearing vertical drags man coverage away and the dig sits down in the window behind it.", role:'S'},
+    robber:      {yards:1,  text:"The robber is reading the quarterback's eyes and jumps the dig before it ever gets there.", role:'S'},
+    quarters:    {yards:3,  text:"Four defenders deep means the vertical is matched and the safety still has eyes on the dig.", role:'S'},
+  },
+  hitch: {
+    manPress:    {yards:2,  text:"Tight man coverage jumps even the simplest route the instant it stops.", role:'CB'},
+    allOutBlitz: {yards:6,  text:"Nothing fancy, but the ball's out before the rush ever matters.", role:'CB'},
+    prevent:     {yards:7,  text:"Prevent is playing so far off that the hitch just sits there uncontested.", role:'CB'},
+  },
+  fade: {
+    manPress:    {yards:15, text:"One-on-one on an island with no help \u2014 exactly the shot a fade is looking for.", role:'CB'},
+    quarters:    {yards:3,  text:"The safety has help over the top the whole way \u2014 the back-shoulder adjustment doesn't matter.", role:'S'},
+    bracket:     {yards:1,  text:"Two defenders on the same receiver \u2014 there's no matchup here to win.", role:'CB'},
+    cover2:      {yards:4,  text:"The safety rotates over before the ball is even in the air.", role:'S'},
+  },
+  paBootleg: {
+    runBlitz:    {yards:14, text:"The blitz completely bites on the fake and flows away from the rollout \u2014 clean throwing lane.", role:'S', breakaway:true},
+    contain:     {yards:2,  text:"Contain is built for exactly this \u2014 stays home and squeezes the rollout down.", role:'DL'},
+    spyDraw:     {yards:8,  text:"The spy is watching the backfield, not the edge the quarterback is rolling toward.", role:'S'},
   },
 };
 

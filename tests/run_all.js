@@ -76,8 +76,8 @@ console.log('\n=== 2. Core data roster integrity ===');
   const { plays, calls, formations, fronts } = w.__exports;
   assert(Object.keys(formations).length === 13, '13 offensive formations defined', Object.keys(formations).length);
   assert(Object.keys(fronts).length === 14, '14 defensive fronts defined', Object.keys(fronts).length);
-  assert(Object.keys(plays).length >= 12, 'at least 12 offensive plays defined', Object.keys(plays).length);
-  assert(Object.keys(calls).length >= 11, 'at least 11 defensive calls defined', Object.keys(calls).length);
+  assert(Object.keys(plays).length >= 22, 'at least 22 offensive plays defined', Object.keys(plays).length);
+  assert(Object.keys(calls).length >= 18, 'at least 18 defensive calls defined', Object.keys(calls).length);
 
   let allPlaysValid = true, badPlay = null;
   Object.entries(plays).forEach(([k,p]) => {
