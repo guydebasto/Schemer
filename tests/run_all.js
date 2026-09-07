@@ -81,9 +81,10 @@ console.log('\n=== 2. Core data roster integrity ===');
 
   let allPlaysValid = true, badPlay = null;
   Object.entries(plays).forEach(([k,p]) => {
-    if (!p.name || !p.category || typeof p.xTarget !== 'number' || typeof p.bend !== 'number') { allPlaysValid = false; badPlay = k; }
+    const xTargetOk = typeof p.xTarget === 'number' || typeof p.xTarget === 'function'; // WR Screen resolves xTarget dynamically to the actual targeted receiver
+    if (!p.name || !p.category || !xTargetOk || typeof p.bend !== 'number') { allPlaysValid = false; badPlay = k; }
   });
-  assert(allPlaysValid, 'every play has name/category/xTarget/bend', badPlay);
+  assert(allPlaysValid, 'every play has name/category/xTarget(number or resolver function)/bend', badPlay);
 }
 
 console.log('\n=== 3. No player positioned in front of the line of scrimmage ===');
@@ -539,6 +540,42 @@ console.log('\n=== 22. Route depths match reality, and no two receivers ever col
   const screenEps = routeEndpointsFor(plays.screen, 'singleback', null, ly);
   const qbEnd = screenEps[0].end, rbEnd = screenEps[1].end;
   assert(Math.abs(qbEnd.y - rbEnd.y) > 15, 'backfield players (QB/RB) preserve their relative depth instead of both snapping to the same point', `QB.y=${qbEnd.y} RB.y=${rbEnd.y}`);
+}
+
+console.log('\n=== 23. WR Screen actually targets a real WR, and the ball lands exactly where they are ===');
+{
+  const { w } = freshWindow('window.screenTargetIndex=screenTargetIndex; window.offensePoints=offensePoints;');
+  const { plays, formations } = w.__exports;
+  let allWR = true, allMatch = true, badFormation = null;
+  Object.keys(formations).forEach(fk=>{
+    const pts = w.offensePoints(fk, null);
+    const idx = w.screenTargetIndex(fk, null, pts);
+    if(pts[idx].label !== 'WR'){ allWR = false; badFormation = fk; }
+    const xTarget = plays.screen.xTarget(fk, null);
+    if(xTarget !== pts[idx].x){ allMatch = false; badFormation = fk; }
+  });
+  assert(allWR, 'WR Screen targets an actual WR-labelled player in every one of the 13 formations', badFormation);
+  assert(allMatch, 'the ball\u2019s landing spot exactly matches where that targeted receiver actually is', badFormation);
+}
+
+console.log('\n=== 24. Ball carrier and tackler are both highlighted after every play ===');
+{
+  const { w } = freshWindow();
+  await new Promise(r=>setTimeout(r,100));
+  w.startLocalGame(false);
+  w.writeGame(g=>{ g.offKey='singleback'; g.offCustom=null; g.phase='DEF_FRONT'; });
+  w.writeGame(g=>{ g.defFrontKey='base43'; g.defFrontCustom=null; g.phase='OFF_MOTION'; });
+  w.writeGame(g=>{ w.commitMotionChoice(g,null); g.phase='DEF_ADJUST'; });
+  w.writeGame(g=>{ g.phase='HANDOFF_TO_OFF'; });
+  w.writeGame(g=>{ g.phase='OFF_PLAY'; });
+  w.writeGame(g=>{ g.offPlayKey='smash'; g.offPlayCustom=null; g.phase='HANDOFF_TO_DEF'; });
+  w.writeGame(g=>{ g.phase='DEF_CALL'; });
+  w.writeGame(g=>{ g.defCallKey='cover2'; g.defCallCustom=null; w.resolvePlay(g); g.phase='RESULT'; });
+  await new Promise(r=>setTimeout(r, 1700));
+  const highlights = [...w.document.getElementById('dynamic').querySelectorAll('.catch-highlight')];
+  assert(highlights.length === 2, 'exactly two highlight rings appear after a play resolves', highlights.length);
+  assert(highlights.some(h=>h.getAttribute('stroke')==='var(--gold)'), 'the ball carrier is highlighted in gold');
+  assert(highlights.some(h=>h.getAttribute('stroke')==='var(--brick)'), 'the tackler is highlighted in brick red');
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

@@ -156,6 +156,12 @@
     100% { r:24; stroke-width:1; opacity:0; }
   }
   .tackle-burst{ animation: burstRing 0.55s ease-out forwards; }
+  @keyframes highlightPulse{
+    0%   { r:6; stroke-width:1; opacity:0; }
+    60%  { stroke-width:3; opacity:1; }
+    100% { stroke-width:2.5; opacity:0.9; }
+  }
+  .catch-highlight{ animation: highlightPulse 0.5s ease-out forwards; fill:none; }
 
   #panel.fading{ opacity:0; transition:none; }
   #panel{ transition: opacity 0.16s ease; }
@@ -403,11 +409,18 @@ const plays = {
     routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-16}, brk:{dx:-side*42,dy:-44} }; } },
   playActionDeep: { name:"PA Deep Post",    note:"Sell the run fake, then break the post over the top of it.",           xTarget:390, bend:0.3,  category:'playAction', needsBack:true, core:true,
     routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-90}, brk:{dx:-side*48,dy:-78} }; } },
-  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass', core:true,
-    routes:(p,i)=>{
-      const towardBall = 578 >= p.x ? 1 : -1; // everyone drifts toward the side the ball is actually going
-      if(i===7) return { stem:{dx:towardBall*30,dy:-6}, brk:{dx:towardBall*90,dy:-4} }; // the screen's actual target: stays shallow, releases toward the catch point
-      return { stem:{dx:towardBall*15,dy:-14}, brk:{dx:towardBall*(35+i*3),dy:-6} }; // everyone else releases short, then gets out in front to block (slight per-index spread avoids bunched formations converging)
+  screen:         { name:"WR Screen",       note:"A receiver already lined up outside gets it in space right away, with blockers out in front to spring him \u2014 designed to win before the rush ever gets home.",
+    xTarget:(offKey,offCustom)=>{
+      const pts = offensePoints(offKey, offCustom);
+      const idx = screenTargetIndex(offKey, offCustom, pts);
+      return pts[idx].x;
+    },
+    bend:0.75, category:'pass', core:true,
+    routes:(p,i,ctx)=>{
+      const targetIdx = screenTargetIndex(ctx.offKey, ctx.offCustom, ctx.pts);
+      const towardBall = ctx.pts[targetIdx].x >= 320 ? 1 : -1;
+      if(i===targetIdx) return { stem:{dx:towardBall*15,dy:-4}, brk:{dx:towardBall*10,dy:-2} }; // the actual receiver: barely moves, the ball comes to him right where he's already lined up
+      return { stem:{dx:towardBall*15,dy:-14}, brk:{dx:towardBall*(35+i*3),dy:-6} }; // everyone else releases short, then gets out in front to block
     } },
   draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true, core:true },
   deepPass:       { name:"Four Verticals",  note:"All four eligible receivers take it straight up the field \u2014 stretches a single deep safety thin, but a two-deep shell has the numbers to match every route.",
@@ -448,6 +461,29 @@ const plays = {
     routes:(p,i)=>{ return { stem:{dx:10,dy:-60-(i%3)*30}, brk:{dx:34,dy:-40-(i%3)*20} }; } },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
+
+function screenTargetIndex(offKey, offCustom, pts){
+  // prefer an actual labelled WR on the play side (right); fall back sensibly if unlabelled
+  if(offKey !== CUSTOM && formations[offKey]){
+    const wrIndices = [];
+    for(let i=5;i<pts.length;i++){ if(pts[i].label==='WR' && pts[i].x>320) wrIndices.push(i); }
+    if(wrIndices.length){
+      return wrIndices.reduce((best,i)=> pts[i].x>pts[best].x ? i : best, wrIndices[0]);
+    }
+    const anyWR = [];
+    for(let i=5;i<pts.length;i++){ if(pts[i].label==='WR') anyWR.push(i); }
+    if(anyWR.length) return anyWR[0];
+  }
+  // custom formation, or no WR-labelled player at all: fall back to the widest skill player on the right
+  let idx = 5, maxW = -1;
+  for(let i=5;i<pts.length;i++){
+    if(pts[i].x <= 320) continue;
+    const w = pts[i].x - 320;
+    if(w > maxW){ maxW = w; idx = i; }
+  }
+  if(maxW < 0){ for(let i=5;i<pts.length;i++){ const w=Math.abs(pts[i].x-320); if(w>maxW){ maxW=w; idx=i; } } }
+  return idx;
+}
 
 function formationHasBack(formKey, formCustom){
   if(formKey === CUSTOM || !formations[formKey]) return true; // no position data on custom formations \u2014 don't restrict what we can't check
@@ -1712,8 +1748,8 @@ function synthesizeRouteOffset(startPt, category, seedIndex){
   return { dx: lateral, dy: -forward - (seedIndex%3)*6 };
 }
 
-function routeRawFor(play, p, i){
-  if(typeof play.routes === 'function') return play.routes(p, i);
+function routeRawFor(play, p, i, ctx){
+  if(typeof play.routes === 'function') return play.routes(p, i, ctx);
   if(play.routes && play.routes[i]) return play.routes[i];
   return synthesizeRouteOffset(p, play.category, i);
 }
@@ -1727,11 +1763,12 @@ function clampRoutePoint(pt, startY){
 // waypoint for a proper two-segment route (a stem, then a break) on our named plays.
 function routeEndpointsFor(play, offKey, offCustom, ly){
   const pts = offensePoints(offKey, offCustom);
+  const ctx = { offKey, offCustom, pts };
   const list = [];
   for(let i=5; i<pts.length; i++){
     const p = pts[i];
     const start = { x:p.x, y: ly+p.y };
-    const raw = routeRawFor(play, p, i);
+    const raw = routeRawFor(play, p, i, ctx);
     let mid = null, end;
     if(raw && (raw.stem || raw.brk)){
       const stem = raw.stem || {dx:0,dy:0}, brk = raw.brk || {dx:0,dy:0};
@@ -1782,7 +1819,8 @@ function drawPlayResult(dyn, ly, animate){
   const play = getPlay(game.offPlayKey, game.offPlayCustom);
   const startX = 320, startY = ly;
   const t = Math.min(r.yards/8,1);
-  const finalX = startX + (play.xTarget - startX)*t;
+  const resolvedXTarget = typeof play.xTarget === 'function' ? play.xTarget(game.offKey, game.offCustom) : play.xTarget;
+  const finalX = startX + (resolvedXTarget - startX)*t;
   const finalY = ly - r.yards*PX_PER_YARD;
 
   const bend = play.bend;
@@ -1852,6 +1890,15 @@ function drawPlayResult(dyn, ly, animate){
       const burst = el('circle',{cx:finalX,cy:finalY,r:3,fill:'none',stroke:'var(--chalk)'});
       burst.classList.add('tackle-burst');
       dyn.appendChild(burst);
+
+      const carrierHighlight = el('circle',{cx:finalX,cy:finalY,r:12,fill:'none',stroke:'var(--gold)'});
+      carrierHighlight.classList.add('catch-highlight');
+      dyn.appendChild(carrierHighlight);
+
+      const tacklerHighlight = el('circle',{cx:dcx,cy:dcy,r:17,fill:'none',stroke:'var(--brick)'});
+      tacklerHighlight.classList.add('catch-highlight');
+      dyn.appendChild(tacklerHighlight);
+
       setTimeout(()=>{ renderPanel(); }, 220);
     }
   }
@@ -3034,7 +3081,8 @@ function edLoadExisting(value, inline){
     } else {
       const src = isOff ? plays[key] : calls[key];
       ed.category = src.category;
-      ed.arrowEnd = isOff ? { x:src.xTarget, y: EDITOR_LOS_Y - (src.bend*180+30) } : {x:380,y:EDITOR_LOS_Y-90};
+      const resolvedXTarget = isOff && typeof src.xTarget === 'function' ? src.xTarget(ed.backdropKey, null) : src.xTarget;
+      ed.arrowEnd = isOff ? { x:resolvedXTarget, y: EDITOR_LOS_Y - (src.bend*180+30) } : {x:380,y:EDITOR_LOS_Y-90};
     }
     done(); return;
   }
