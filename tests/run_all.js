@@ -362,6 +362,59 @@ console.log('\n=== 15. Route shapes are real two-segment paths, and the preview 
   }
 }
 
+console.log('\n=== 16. Core/full playbook toggle actually re-renders the screen ===');
+{
+  const { w } = freshWindow();
+  await new Promise(r=>setTimeout(r,100)); // let boot() settle first, like a real user would
+  w.startLocalGame(false);
+  w.writeGame(g=>{ g.offKey='singleback'; g.offCustom=null; g.phase='DEF_FRONT'; });
+  w.writeGame(g=>{ g.defFrontKey='base43'; g.defFrontCustom=null; g.phase='OFF_MOTION'; });
+  w.writeGame(g=>{ w.commitMotionChoice(g,null); g.phase='DEF_ADJUST'; });
+  w.writeGame(g=>{ g.phase='HANDOFF_TO_OFF'; });
+  w.writeGame(g=>{ g.phase='OFF_PLAY'; });
+  await new Promise(r=>setTimeout(r,60));
+
+  let btns = [...w.document.querySelectorAll('.choice-btn .name')].map(n=>n.textContent.trim());
+  assert(btns.length === 8, 'default view shows only the 8 core offensive plays', btns.length);
+  assert(!btns.includes('Power'), 'a non-core play (Power) is hidden by default');
+
+  const toggleBtn = [...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('tap to see all'));
+  assert(!!toggleBtn, 'the core/full toggle button is present');
+  toggleBtn.click();
+  await new Promise(r=>setTimeout(r,60));
+
+  btns = [...w.document.querySelectorAll('.choice-btn .name')].map(n=>n.textContent.trim());
+  assert(btns.length === 22, 'clicking the toggle actually re-renders the screen to show all 22 plays', btns.length);
+  assert(btns.includes('Power'), 'the previously-hidden play is now visible');
+}
+
+console.log('\n=== 17. Custom route drawing supports a real stem-then-break shape ===');
+{
+  const { w } = freshWindow();
+  await new Promise(r=>setTimeout(r,100));
+  w.goToScreen('editor');
+  w.edSwitchType('play');
+  const ed = w.__getEd();
+  ed.backdropKey = 'singleback';
+  ed.routes = {};
+  w.edSnapshot();
+  ed.routes[7] = { dx: 60, dy: -70 }; // first drag: a simple one-segment route
+  assert(ed.routes[7].dx === 60 && !ed.routes[7].stem, 'first drag produces a simple one-segment route');
+
+  // simulate dragging the endpoint to extend it into a real break (mirrors edExtendRouteBreak)
+  const stem = { dx: ed.routes[7].dx, dy: ed.routes[7].dy };
+  const startPt = { x: 175, y: 480 };
+  const midAbs = { x: startPt.x + stem.dx, y: startPt.y + stem.dy };
+  const newEnd = { x: midAbs.x + 40, y: midAbs.y - 20 };
+  ed.routes[7] = { stem, brk: { dx: newEnd.x - midAbs.x, dy: newEnd.y - midAbs.y } };
+  assert(!!ed.routes[7].stem && !!ed.routes[7].brk, 'extending the endpoint converts it into a real stem+break route');
+
+  const { routeEndpointsFor, losY } = w.__exports;
+  const eps = routeEndpointsFor({routes: ed.routes}, 'singleback', null, losY(50));
+  const r7 = eps[2];
+  assert(!!r7.mid, 'the drawn route resolves to a path with a real break point, matching the built-in named plays');
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed > 0 ? 1 : 0);
 

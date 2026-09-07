@@ -383,19 +383,19 @@ const fronts = {
 };
 
 const plays = {
-  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:325, bend:0.1, category:'run', needsBack:true },
-  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run', needsBack:true },
+  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:325, bend:0.1, category:'run', needsBack:true, core:true },
+  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run', needsBack:true, core:true },
   quickPass:      { name:"Slants",          note:"Everyone cuts inside on a sharp, quick angle \u2014 beats soft zone before it can react, but a jumped route against press coverage gets picked off clean.",
-    xTarget:350, bend:0.25, category:'pass',
+    xTarget:350, bend:0.25, category:'pass', core:true,
     routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-16}, brk:{dx:-side*42,dy:-38} }; } },
-  playActionDeep: { name:"PA Deep Post",    note:"Sell the run fake, then break the post over the top of it.",           xTarget:390, bend:0.3,  category:'playAction', needsBack:true,
+  playActionDeep: { name:"PA Deep Post",    note:"Sell the run fake, then break the post over the top of it.",           xTarget:390, bend:0.3,  category:'playAction', needsBack:true, core:true,
     routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-58}, brk:{dx:-side*42,dy:-38} }; } },
-  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass' },
-  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true },
+  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass', core:true },
+  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true, core:true },
   deepPass:       { name:"Four Verticals",  note:"All four eligible receivers take it straight up the field \u2014 stretches a single deep safety thin, but a two-deep shell has the numbers to match every route.",
-    xTarget:355, bend:0.15, category:'deep',
+    xTarget:355, bend:0.15, category:'deep', core:true,
     routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*4,dy:-66}, brk:{dx:side*4,dy:-32} }; } },
-  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run', needsBack:true },
+  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run', needsBack:true, core:true },
   stick:          { name:"Stick",           note:"Settle into the soft spot underneath, with a receiver in the flat for the quick check-down \u2014 gets the ball out before pressure ever arrives.",
     xTarget:400, bend:0.35, category:'pass',
     routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-46}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-10}, brk:{dx:side*40,dy:-10} }; } },
@@ -441,14 +441,14 @@ function frontSafetyCount(frontKey, frontCustom){
 }
 
 const calls = {
-  runBlitz:    { name:"Run Blitz",     note:"Send an extra man to shoot a gap the instant the ball's snapped.", category:'blitz' },
-  contain:     { name:"Contain",       note:"Stay disciplined \u2014 hold the edge, keep it all in front of you.", category:'runD' },
-  zoneDrop:    { name:"Cover 3",       note:"Three defenders split the deep field into thirds, four underneath \u2014 sound against the deep ball, but there's grass in front of the sticks.", category:'passD' },
-  manPress:    { name:"Cover 1",       note:"Man coverage on every receiver with a single free safety deep \u2014 dares the quarterback to win one-on-one.", category:'passD' },
-  spyDraw:     { name:"Spy the Draw",  note:"Keep one defender glued to the backfield, watching for a delayed handoff or scramble.", category:'runD' },
-  allOutBlitz: { name:"Cover 0",       note:"Man coverage everywhere with no deep help at all \u2014 everybody comes on the blitz.", category:'blitz' },
-  prevent:     { name:"Prevent",       note:"Drop nearly everyone deep \u2014 concede the short stuff, guard against the big one.", category:'passD', needsSafeties:3 },
-  stunt:       { name:"Fire Zone",     note:"Five rushers cross their lanes on the snap, three defenders drop into a zone behind it.", category:'blitz' },
+  runBlitz:    { name:"Run Blitz",     note:"Send an extra man to shoot a gap the instant the ball's snapped.", category:'blitz', core:true },
+  contain:     { name:"Contain",       note:"Stay disciplined \u2014 hold the edge, keep it all in front of you.", category:'runD', core:true },
+  zoneDrop:    { name:"Cover 3",       note:"Three defenders split the deep field into thirds, four underneath \u2014 sound against the deep ball, but there's grass in front of the sticks.", category:'passD', core:true },
+  manPress:    { name:"Cover 1",       note:"Man coverage on every receiver with a single free safety deep \u2014 dares the quarterback to win one-on-one.", category:'passD', core:true },
+  spyDraw:     { name:"Spy the Draw",  note:"Keep one defender glued to the backfield, watching for a delayed handoff or scramble.", category:'runD', core:true },
+  allOutBlitz: { name:"Cover 0",       note:"Man coverage everywhere with no deep help at all \u2014 everybody comes on the blitz.", category:'blitz', core:true },
+  prevent:     { name:"Prevent",       note:"Drop nearly everyone deep \u2014 concede the short stuff, guard against the big one.", category:'passD', needsSafeties:3, core:true },
+  stunt:       { name:"Fire Zone",     note:"Five rushers cross their lanes on the snap, three defenders drop into a zone behind it.", category:'blitz', core:true },
   cover2:      { name:"Cover 2",       note:"Two safeties split the deep field, corners jam at the line \u2014 nothing gets behind them, but the middle and flats are there underneath.", category:'passD', needsSafeties:2 },
   quarters:    { name:"Cover 4",       note:"Four defenders spread across the deep field and pattern-match the routes \u2014 shuts down verticals, tight on anything toward the numbers.", category:'passD', needsSafeties:2 },
   tampa2:      { name:"Tampa 2",       note:"Same shell as Cover 2, but the middle linebacker drops into the deep middle hole \u2014 covers the one gap Cover 2 leaves open, at the cost of the underneath middle.", category:'passD', needsSafeties:2 },
@@ -929,6 +929,7 @@ function aiPickFront(){
 let editorOverlay = null; // {side,type} when the inline in-game creator is open
 let aiPending = false; // guards against overlapping AI decision timers
 let showPosLabels = false; // toggle: defensive players shown as position abbreviations instead of circles
+let showAllPlays = false; // toggle: full 22/18-play roster vs the 8 core fundamentals per side
 
 function refreshCurrentView(){
   if(editorOverlay){ renderPanel(); }
@@ -2204,6 +2205,7 @@ function buildPanel(){
     if(myRole==='offense'){
       const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
       const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
+      panel.appendChild(playbookToggleRow());
       panel.appendChild(choiceGrid(
         "Hidden from the defence \u2014 pick your play.", false,
         groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom, formationHasBack(game.offKey, game.offCustom)),
@@ -2219,6 +2221,7 @@ function buildPanel(){
     if(myRole==='defense'){
       const onPick = k=>writeGame(g=>{ g.defCallKey=k; g.defCallCustom=null; resolvePlay(g); g.phase='RESULT'; });
       const onPickCustom = item=>writeGame(g=>{ g.defCallKey=CUSTOM; g.defCallCustom=item; resolvePlay(g); g.phase='RESULT'; });
+      panel.appendChild(playbookToggleRow());
       panel.appendChild(choiceGrid(
         "Hidden from the offence \u2014 make your call.", true,
         groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPick, onPickCustom, null, frontSafetyCount(game.defFrontKey, game.defFrontCustom)),
@@ -2284,6 +2287,7 @@ function buildLocalPanel(phase){
   } else if(phase === 'OFF_PLAY'){
     const onPickOff = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='HANDOFF_TO_DEF'; });
     const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='HANDOFF_TO_DEF'; });
+    panel.appendChild(playbookToggleRow());
     panel.appendChild(choiceGrid(
       "Hidden from the defence \u2014 pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom, formationHasBack(game.offKey, game.offCustom)),
@@ -2301,6 +2305,7 @@ function buildLocalPanel(phase){
   } else if(phase === 'DEF_CALL'){
     const onPickDef = k=>writeGame(g=>{ g.defCallKey=k; g.defCallCustom=null; resolvePlay(g); g.phase='RESULT'; });
     const onPickDefCustom = item=>writeGame(g=>{ g.defCallKey=CUSTOM; g.defCallCustom=item; resolvePlay(g); g.phase='RESULT'; });
+    panel.appendChild(playbookToggleRow());
     panel.appendChild(choiceGrid(
       "Hidden from the offence \u2014 make your call.", true,
       groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPickDef, onPickDefCustom, null, frontSafetyCount(game.defFrontKey, game.defFrontCustom)),
@@ -2368,6 +2373,7 @@ function buildAIPanel(phase){
   } else if(phase === 'OFF_PLAY'){
     const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
     const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
+    panel.appendChild(playbookToggleRow());
     panel.appendChild(choiceGrid(
       "Pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom, formationHasBack(game.offKey, game.offCustom)),
@@ -2380,6 +2386,7 @@ function buildAIPanel(phase){
   } else if(phase === 'DEF_CALL'){
     const onPick = k=>writeGame(g=>{ g.defCallKey=k; g.defCallCustom=null; resolvePlay(g); g.phase='RESULT'; });
     const onPickCustom = item=>writeGame(g=>{ g.defCallKey=CUSTOM; g.defCallCustom=item; resolvePlay(g); g.phase='RESULT'; });
+    panel.appendChild(playbookToggleRow());
     panel.appendChild(choiceGrid(
       "Make your defensive call.", true,
       groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPick, onPickCustom, null, frontSafetyCount(game.defFrontKey, game.defFrontCustom)),
@@ -2481,11 +2488,24 @@ function defPersonnelOf(key, item, isCustom){
   return `${dl}-${lb}`;
 }
 
+function playbookToggleRow(){
+  const wrap = document.createElement('div');
+  wrap.style.textAlign = 'center'; wrap.style.marginBottom = '10px';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ghost' + (showAllPlays ? ' active-toggle' : '');
+  btn.textContent = showAllPlays ? 'Showing all \u2014 tap for core only' : 'Showing core plays \u2014 tap to see all';
+  btn.onclick = ()=>{ showAllPlays = !showAllPlays; refreshCurrentView(); };
+  wrap.appendChild(btn);
+  return wrap;
+}
+
 function groupsByCategory(builtinDict, customList, categoryMap, onPick, onPickCustom, formHasBack, safetyCount){
   return Object.keys(categoryMap).map(catKey=>{
     const entries=[];
     Object.keys(builtinDict).forEach(k=>{
       if(builtinDict[k].category!==catKey) return;
+      if(!showAllPlays && !builtinDict[k].core) return;
       let blocked = false, reason = null;
       if(builtinDict[k].needsBack && formHasBack===false){
         blocked = true; reason = "Needs a running back in your formation";
@@ -3395,11 +3415,33 @@ function edStartDragArrow(evt, svg){
 
 function edStartRouteDraw(evt, idx, svg, startPt){
   evt.preventDefault();
+  evt.stopPropagation();
   edSnapshot();
   ed.routes = ed.routes || {};
   const move = e=>{
     const p = edSvgPoint(e, svg);
     ed.routes[idx] = { dx: p.x - startPt.x, dy: p.y - startPt.y };
+    edRenderCanvas();
+  };
+  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+function edExtendRouteBreak(evt, idx, svg, startPt){
+  evt.preventDefault();
+  evt.stopPropagation();
+  edSnapshot();
+  const existing = ed.routes[idx];
+  // whatever the route currently is (a simple line, or already has a stem), the point it
+  // currently ends at becomes the fixed stem, and this drag sets a fresh break from there.
+  const stem = existing.stem
+    ? { dx: existing.stem.dx + (existing.brk?existing.brk.dx:0), dy: existing.stem.dy + (existing.brk?existing.brk.dy:0) }
+    : { dx: existing.dx, dy: existing.dy };
+  const midAbs = { x: startPt.x + stem.dx, y: startPt.y + stem.dy };
+  const move = e=>{
+    const p = edSvgPoint(e, svg);
+    ed.routes[idx] = { stem, brk: { dx: p.x - midAbs.x, dy: p.y - midAbs.y } };
     edRenderCanvas();
   };
   const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
@@ -3498,9 +3540,21 @@ function edRenderCanvas(){
       const p = backdropPts[idx];
       const r = ed.routes[idx];
       if(!p || !r) return;
-      const end = { x: p.x + r.dx, y: p.y + r.dy };
-      svg.appendChild(el('line',{x1:p.x,y1:p.y,x2:end.x,y2:end.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'3,3'}));
-      svg.appendChild(el('circle',{cx:end.x,cy:end.y,r:5,fill:'var(--gold)'}));
+      let mid = null, end;
+      if(r.stem || r.brk){
+        mid = { x: p.x + (r.stem?r.stem.dx:0), y: p.y + (r.stem?r.stem.dy:0) };
+        end = { x: mid.x + (r.brk?r.brk.dx:0), y: mid.y + (r.brk?r.brk.dy:0) };
+        svg.appendChild(el('line',{x1:p.x,y1:p.y,x2:mid.x,y2:mid.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'3,3'}));
+        svg.appendChild(el('line',{x1:mid.x,y1:mid.y,x2:end.x,y2:end.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'3,3'}));
+        svg.appendChild(el('circle',{cx:mid.x,cy:mid.y,r:3,fill:'var(--gold-dim)'}));
+      } else {
+        end = { x: p.x + r.dx, y: p.y + r.dy };
+        svg.appendChild(el('line',{x1:p.x,y1:p.y,x2:end.x,y2:end.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'3,3'}));
+      }
+      const endHit = el('circle',{cx:end.x,cy:end.y,r:9,fill:'var(--gold)'});
+      endHit.style.cursor = 'crosshair';
+      endHit.addEventListener('pointerdown', e=> edExtendRouteBreak(e, idx, svg, p));
+      svg.appendChild(endHit);
     });
 
     const ballX=320, ballY=EDITOR_LOS_Y;
