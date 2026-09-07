@@ -383,12 +383,29 @@ const fronts = {
 const plays = {
   insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:325, bend:0.1, category:'run', needsBack:true },
   sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run', needsBack:true },
-  quickPass:      { name:"Quick Pass",      note:"Get it out fast on a quick route before the rush arrives.",             xTarget:430, bend:0.5,  category:'pass' },
-  playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:390, bend:0.3,  category:'playAction', needsBack:true },
+  quickPass:      { name:"Slants",          note:"Everyone cuts inside on a sharp, quick angle \u2014 beats soft zone before it can react, but a jumped route against press coverage gets picked off clean.",
+    xTarget:350, bend:0.25, category:'pass',
+    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:-side*45, dy:-52 }; } },
+  playActionDeep: { name:"PA Deep Post",    note:"Sell the run fake, then break the post over the top of it.",           xTarget:390, bend:0.3,  category:'playAction', needsBack:true,
+    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:-side*55, dy:-88 }; } },
   screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass' },
   draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true },
-  deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:355, bend:0.15, category:'deep' },
+  deepPass:       { name:"Four Verticals",  note:"All four eligible receivers take it straight up the field \u2014 stretches a single deep safety thin, but a two-deep shell has the numbers to match every route.",
+    xTarget:355, bend:0.15, category:'deep',
+    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:side*8, dy:-98 }; } },
   reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run', needsBack:true },
+  stick:          { name:"Stick",           note:"Settle into the soft spot underneath, with a receiver in the flat for the quick check-down \u2014 gets the ball out before pressure ever arrives.",
+    xTarget:400, bend:0.35, category:'pass',
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:side*10, dy:-48} : {dx:side*45, dy:-20}; } },
+  flood:          { name:"Flood",           note:"Three receivers stack one side at three different depths \u2014 overloads whoever's covering that zone, but man coverage just runs with each of them individually.",
+    xTarget:480, bend:0.6, category:'pass',
+    routes:(p,i)=>{ const depths=[-32,-62,-92]; return { dx:70, dy:depths[i%3] }; } },
+  mesh:           { name:"Mesh",            note:"Two routes cross shallow underneath \u2014 the pick is basically built in against man coverage, though zone defenders just pass receivers off through it.",
+    xTarget:350, bend:0.3, category:'pass',
+    routes:(p)=>{ const side = p.x<320?-1:1; return { dx:-side*95, dy:-40 }; } },
+  smash:          { name:"Smash",           note:"A quick hitch underneath, a corner route over the top \u2014 a classic high-low read that punishes a two-deep flat defender.",
+    xTarget:460, bend:0.55, category:'pass',
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? {dx:side*10, dy:-24} : {dx:side*70, dy:-75}; } },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
 
@@ -400,12 +417,15 @@ function formationHasBack(formKey, formCustom){
 const calls = {
   runBlitz:    { name:"Run Blitz",     note:"Send an extra man to shoot a gap the instant the ball's snapped.", category:'blitz' },
   contain:     { name:"Contain",       note:"Stay disciplined \u2014 hold the edge, keep it all in front of you.", category:'runD' },
-  zoneDrop:    { name:"Zone Drop",     note:"Drop everyone into coverage \u2014 sit in the throwing lanes.", category:'passD' },
-  manPress:    { name:"Man Press",     note:"Lock every receiver into tight man coverage and dare the quarterback to beat it deep.", category:'passD' },
+  zoneDrop:    { name:"Cover 3",       note:"Three defenders split the deep field into thirds, four underneath \u2014 sound against the deep ball, but there's grass in front of the sticks.", category:'passD' },
+  manPress:    { name:"Cover 1",       note:"Man coverage on every receiver with a single free safety deep \u2014 dares the quarterback to win one-on-one.", category:'passD' },
   spyDraw:     { name:"Spy the Draw",  note:"Keep one defender glued to the backfield, watching for a delayed handoff or scramble.", category:'runD' },
-  allOutBlitz: { name:"All-Out Blitz", note:"Send everybody \u2014 if it doesn't get home immediately, there's nobody left behind it.", category:'blitz' },
+  allOutBlitz: { name:"Cover 0",       note:"Man coverage everywhere with no deep help at all \u2014 everybody comes on the blitz.", category:'blitz' },
   prevent:     { name:"Prevent",       note:"Drop nearly everyone deep \u2014 concede the short stuff, guard against the big one.", category:'passD' },
-  stunt:       { name:"Line Stunt",    note:"Cross the linemen's rush lanes on the snap to confuse the blocking scheme.", category:'blitz' },
+  stunt:       { name:"Fire Zone",     note:"Five rushers cross their lanes on the snap, three defenders drop into a zone behind it.", category:'blitz' },
+  cover2:      { name:"Cover 2",       note:"Two safeties split the deep field, corners jam at the line \u2014 nothing gets behind them, but the middle and flats are there underneath.", category:'passD' },
+  quarters:    { name:"Cover 4",       note:"Four defenders spread across the deep field and pattern-match the routes \u2014 shuts down verticals, tight on anything toward the numbers.", category:'passD' },
+  tampa2:      { name:"Tampa 2",       note:"Same shell as Cover 2, but the middle linebacker drops into the deep middle hole \u2014 covers the one gap Cover 2 leaves open, at the cost of the underneath middle.", category:'passD' },
 };
 const CALL_CATEGORIES = { runD:'Run D', passD:'Pass D', blitz:'Blitz' };
 
@@ -439,6 +459,9 @@ const outcomes = {
     allOutBlitz: {yards:8,  text:"Max pressure, but the ball's already gone \u2014 nobody's left to rally underneath.", role:'S', breakaway:true},
     prevent:     {yards:6,  text:"Prevent concedes exactly this \u2014 the underneath route sits wide open all day.", role:'S'},
     stunt:       {yards:7,  text:"The stunt takes an extra beat to develop \u2014 the ball's already out before it ever gets home.", role:'CB'},
+    cover2:      {yards:5,  text:"The corner jams at the line, but the ball's out on the slant before he can reroute it.", role:'CB'},
+    quarters:    {yards:2,  text:"The corner is reading run/pass on the snap and squeezes the slant window down to nothing.", role:'CB'},
+    tampa2:      {yards:6,  text:"The middle backer's dropping deep, not sitting underneath \u2014 the slant window stays wide open.", role:'S'},
   },
   playActionDeep: {
     runBlitz:    {yards:15, text:"The blitz completely bites on the run fake \u2014 there's nobody left deep.", role:'S'},
@@ -449,6 +472,9 @@ const outcomes = {
     allOutBlitz: {yards:18, text:"A full blitz leaves absolutely nobody in coverage \u2014 it's off to the races.", role:'S', breakaway:true},
     prevent:     {yards:4,  text:"So many bodies are already deep that the fake barely matters \u2014 the shot gets swallowed before it ever gets going.", role:'S'},
     stunt:       {yards:5,  text:"The line game distracts the tackles just enough \u2014 there's a crack of time for the fake to hold up.", role:'S'},
+    cover2:      {yards:4,  text:"The safeties never left their landmarks for a run fake \u2014 the post runs right into the deep half.", role:'S'},
+    quarters:    {yards:3,  text:"Four defenders were already reading the backfield \u2014 the fake barely moves anybody.", role:'S'},
+    tampa2:      {yards:5,  text:"The middle backer bites just enough on his way to the deep hole \u2014 the post has a crease, but the safety's still there.", role:'S'},
   },
   screen: {
     runBlitz:    {yards:10, text:"The blitzer flies upfield right past the play \u2014 blockers are already out in front of it.", role:'LB'},
@@ -479,6 +505,9 @@ const outcomes = {
     allOutBlitz: {yards:20, text:"Everybody's rushing and nobody's deep \u2014 the protection holds just long enough and this one's gone.", role:'S', breakaway:true},
     prevent:     {yards:2,  text:"This is exactly what prevent is built to stop \u2014 way too many bodies deep for anything to get behind them.", role:'S'},
     stunt:       {yards:9,  text:"The stunt disrupts the pocket but doesn't add a rusher \u2014 there's still just enough time for the route to break open.", role:'CB'},
+    cover2:      {yards:4,  text:"Two safeties splitting the deep field is exactly the numbers advantage that shuts verticals down.", role:'S'},
+    quarters:    {yards:2,  text:"Four defenders deep means every vertical route has a matching number \u2014 nothing gets behind it.", role:'S'},
+    tampa2:      {yards:5,  text:"The middle backer fills the deep seam, but the outside verticals still have single coverage \u2014 a shot still connects.", role:'CB'},
   },
   reverse: {
     runBlitz:    {yards:13, text:"The blitz flows hard one direction \u2014 the ball's already coming back the other way with numbers to the edge.", role:'CB'},
@@ -489,6 +518,36 @@ const outcomes = {
     allOutBlitz: {yards:17, text:"Every single defender flows hard toward the fake direction \u2014 the reverse has the entire backside to itself.", role:'S', breakaway:true},
     prevent:     {yards:5,  text:"Nobody up front is flowing hard either way \u2014 a modest gain before the safeties close in from deep.", role:'CB'},
     stunt:       {yards:9,  text:"The stunting linemen are committed to their exchange up front and can't redirect \u2014 the reverse gets outside before anyone recovers.", role:'DL'},
+  },
+  stick: {
+    runBlitz:    {yards:9,  text:"Quick game beats the blitz almost every time \u2014 the ball's out of his hand before the rusher's within five yards.", role:'CB'},
+    zoneDrop:    {yards:6,  text:"The stick settles right into the soft spot between the underneath zones.", role:'LB'},
+    manPress:    {yards:3,  text:"Man coverage travels with the stick route, but the flat option is still there for a check-down.", role:'CB'},
+    allOutBlitz: {yards:11, text:"An all-out blitz has zero chance against a route this quick \u2014 the ball's already gone.", role:'S'},
+    prevent:     {yards:5,  text:"Prevent concedes exactly this kind of underneath completion.", role:'LB'},
+    cover2:      {yards:7,  text:"The stick sits in the seam between the corner's flat drop and the linebacker's hook \u2014 an easy pitch and catch.", role:'LB'},
+  },
+  flood: {
+    zoneDrop:    {yards:11, text:"Three levels stacked on one side completely overloads the deep-third defender \u2014 somebody's open no matter what he takes away.", role:'S'},
+    cover2:      {yards:9,  text:"The flat defender has to pick between three different depths \u2014 he can't cover all of them.", role:'CB'},
+    manPress:    {yards:3,  text:"Man coverage just runs with whoever it's assigned \u2014 stacking depths doesn't create any real advantage.", role:'CB'},
+    allOutBlitz: {yards:2,  text:"Three routes at three depths need time to develop that an all-out blitz never allows.", role:'DL'},
+    prevent:     {yards:8,  text:"Prevent is playing so deep that the short and intermediate levels are both wide open underneath it.", role:'S'},
+    tampa2:      {yards:8,  text:"The middle linebacker's gone to the deep hole \u2014 the underneath levels of the flood are uncontested.", role:'CB'},
+  },
+  mesh: {
+    manPress:    {yards:10, text:"The crossing routes rub the defenders into each other \u2014 man coverage has almost no answer for a natural pick like this.", role:'CB'},
+    allOutBlitz: {yards:8,  text:"Everyone's occupied with the rush \u2014 the mesh crossers get free release into open grass underneath.", role:'LB'},
+    zoneDrop:    {yards:3,  text:"Zone defenders just pass the crossers off to each other \u2014 no natural advantage against a shell like this.", role:'LB'},
+    cover2:      {yards:4,  text:"The underneath zone squeezes the mesh point down before either route can fully clear.", role:'LB'},
+    tampa2:      {yards:3,  text:"The shallow crossers never get near the middle linebacker's landmark \u2014 doesn't change much either way.", role:'LB'},
+  },
+  smash: {
+    cover2:      {yards:12, text:"The exact high-low this route is built for \u2014 the flat defender can't be in two places, and the corner route sails over him.", role:'CB'},
+    tampa2:      {yards:10, text:"Same conflict as Cover 2 \u2014 the flat defender bites on the hitch and the corner route is gone over the top.", role:'CB'},
+    quarters:    {yards:3,  text:"The pattern-matching corner passes the hitch off underneath and stays on top of the corner route the whole way.", role:'CB'},
+    manPress:    {yards:5,  text:"Straight man coverage on both routes \u2014 no zone conflict to exploit, just a footrace.", role:'CB'},
+    allOutBlitz: {yards:9,  text:"Whoever's left in coverage has to choose \u2014 the underneath blitz can't affect either route at all.", role:'S'},
   },
 };
 
@@ -1452,18 +1511,32 @@ function synthesizeRouteOffset(startPt, category, seedIndex){
   return { dx: lateral, dy: -forward - (seedIndex%3)*6 };
 }
 
-function buildRouteAnimators(dyn, ly, play, offKey, offCustom){
+function routeOffsetFor(play, p, i){
+  if(typeof play.routes === 'function') return play.routes(p, i);
+  if(play.routes && play.routes[i]) return play.routes[i];
+  return synthesizeRouteOffset(p, play.category, i);
+}
+
+function routeEndpointsFor(play, offKey, offCustom, ly){
   const pts = offensePoints(offKey, offCustom);
-  const animators = [];
+  const list = [];
   for(let i=5; i<pts.length; i++){
     const p = pts[i];
     const start = { x:p.x, y: ly+p.y };
-    const stored = play.routes && play.routes[i];
-    const offset = stored || synthesizeRouteOffset(p, play.category, i);
+    const offset = routeOffsetFor(play, p, i);
     const end = {
       x: Math.max(48, Math.min(592, start.x + offset.dx)),
       y: Math.min(ly, start.y + offset.dy), // routes run upfield, never backward past the snap depth
     };
+    list.push({ start, end });
+  }
+  return list;
+}
+
+function buildRouteAnimators(dyn, ly, play, offKey, offCustom){
+  const endpoints = routeEndpointsFor(play, offKey, offCustom, ly);
+  const animators = [];
+  endpoints.forEach(({start,end})=>{
     const marker = makeMarker(start.x, start.y, 'X', 'var(--gold-dim)', false, 0);
     const lines = marker.querySelectorAll('line');
     lines.forEach(l=> l.setAttribute('stroke-width', 2));
@@ -1473,7 +1546,7 @@ function buildRouteAnimators(dyn, ly, play, offKey, offCustom){
     }));
     dyn.appendChild(marker);
     animators.push({ start, end, lines, offsets });
-  }
+  });
   return animators;
 }
 
@@ -1673,6 +1746,25 @@ function animateMotionMarker(startAbs, endAbs, bend, opts, ly){
     if(t < 1) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+}
+
+function previewPlayRoutes(play){
+  if(!game || !game.offKey) return;
+  const ly = losY(game.ballOn);
+  const dyn = document.getElementById('dynamic');
+  if(!dyn) return;
+  clearPlayRoutePreview();
+  const endpoints = routeEndpointsFor(play, game.offKey, game.offCustom, ly);
+  const group = el('g', {id:'playRoutePreview'});
+  endpoints.forEach(({start,end})=>{
+    group.appendChild(el('line', {x1:start.x,y1:start.y,x2:end.x,y2:end.y, stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'4,4', opacity:'0.85'}));
+    group.appendChild(el('circle', {cx:end.x,cy:end.y,r:4, fill:'var(--gold)'}));
+  });
+  dyn.appendChild(group);
+}
+function clearPlayRoutePreview(){
+  const old = document.getElementById('playRoutePreview');
+  if(old) old.remove();
 }
 
 function previewMotionAnimation(motionType){
@@ -1943,7 +2035,8 @@ function buildPanel(){
         groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom, formationHasBack(game.offKey, game.offCustom)),
         ()=> openEditor('offense','play'), 'Create your own play',
         text=> handleTypedPlay(text, onPick, onPickCustom),
-        offCoachTip(game.down, game.distance, game.ballOn)
+        offCoachTip(game.down, game.distance, game.ballOn),
+        null, true
       ));
     } else {
       panel.appendChild(waitingBox("Offence is making their play call\u2026"));
@@ -2022,7 +2115,8 @@ function buildLocalPanel(phase){
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom, formationHasBack(game.offKey, game.offCustom)),
       ()=> openEditor('offense','play'), 'Create your own play',
       text=> handleTypedPlay(text, onPickOff, onPickOffCustom),
-      offCoachTip(game.down, game.distance, game.ballOn)
+      offCoachTip(game.down, game.distance, game.ballOn),
+      null, true
     ));
 
   } else if(phase === 'HANDOFF_TO_DEF'){
@@ -2105,7 +2199,8 @@ function buildAIPanel(phase){
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom, formationHasBack(game.offKey, game.offCustom)),
       ()=> openEditor('offense','play'), 'Create your own play',
       text=> handleTypedPlay(text, onPick, onPickCustom),
-      offCoachTip(game.down, game.distance, game.ballOn)
+      offCoachTip(game.down, game.distance, game.ballOn),
+      null, true
     ));
 
   } else if(phase === 'DEF_CALL'){
@@ -2266,7 +2361,7 @@ function inferRemoveKind(isDef, previewSide){
   return isDef ? 'defCall' : 'offPlay';
 }
 
-function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText, previewSide){
+function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText, previewSide, routePreview){
   const removeKind = inferRemoveKind(isDef, previewSide);
   const wrap = document.createElement('div');
   const p = document.createElement('div'); p.className='prompt'; p.innerHTML = promptText;
@@ -2324,6 +2419,19 @@ function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHa
               clearTimeout(formationPreviewEndTimer);
               formationPreviewEndTimer = setTimeout(()=>{ endFormationPreview(); }, 10000);
             }, 1000);
+          });
+          btn.addEventListener('mouseleave', ()=>{
+            clearTimeout(formationHoverTimer);
+          });
+        }
+        if(routePreview){
+          btn.addEventListener('mouseenter', ()=>{
+            clearTimeout(formationHoverTimer);
+            formationHoverTimer = setTimeout(()=>{
+              previewPlayRoutes(e.item);
+              clearTimeout(formationPreviewEndTimer);
+              formationPreviewEndTimer = setTimeout(()=>{ clearPlayRoutePreview(); }, 10000);
+            }, 600);
           });
           btn.addEventListener('mouseleave', ()=>{
             clearTimeout(formationHoverTimer);
