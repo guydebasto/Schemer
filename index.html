@@ -830,6 +830,7 @@ function freshGame(opts){
     offCustom:null, defFrontCustom:null, offPlayCustom:null, defCallCustom:null,
     score:0, quarter:1, clock:900, clockOn: !!opts.clockOn, gameOver:false, twoMinuteWarningGiven:false,
     fourthDownDecided:false,
+    motionType:null, motionPlayerIndex:null, motionFinalPos:null,
     aiSide: opts.aiSide||null, aiDifficulty: opts.aiDifficulty||'medium',
     aiOffStyle: opts.aiOffStyle||'balanced', aiDefStyle: opts.aiDefStyle||'balanced' };
 }
@@ -1288,9 +1289,13 @@ function drawLineMarker(dyn, y, color, dashed){
 const FIELD_TOP_Y = 64, FIELD_BOTTOM_Y = 696; // keeps players out of the end zones
 function clampFieldY(y){ return Math.max(FIELD_TOP_Y, Math.min(FIELD_BOTTOM_Y, y)); }
 
-function drawOffense(dyn, formKey, formCustom, ly, animate){
+function drawOffense(dyn, formKey, formCustom, ly, animate, motionOverride){
   const pts = offensePoints(formKey, formCustom);
-  pts.forEach((p,i)=> dyn.appendChild(makeMarker(p.x, clampFieldY(ly+p.y), i===2?'square':'X', 'var(--gold)', animate, i)));
+  pts.forEach((p,i)=>{
+    let x = p.x, y = clampFieldY(ly+p.y);
+    if(motionOverride && i===motionOverride.index){ x = motionOverride.pos.x; y = clampFieldY(ly+motionOverride.pos.y); }
+    dyn.appendChild(makeMarker(x, y, i===2?'square':'X', 'var(--gold)', animate, i));
+  });
 }
 function drawDefense(dyn, frontKey, frontCustom, ly, animate){
   const pts = defensePoints(frontKey, frontCustom);
@@ -1450,7 +1455,113 @@ function drawPlayResult(dyn, ly, animate){
   requestAnimationFrame(frame);
 }
 
-function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
+/* ---- pre-snap motion ---- */
+
+const MOTION_TYPES = { jet:'Jet', orbit:'Orbit', shift:'Shift', return:'Return' };
+let pendingMotion = null; // ephemeral choice while calling the current play
+
+function motionManIndex(g){
+  const pts = offensePoints(g.offKey, g.offCustom);
+  let idx = 5, maxW = -1;
+  for(let i=5; i<pts.length; i++){
+    const w = Math.abs(pts[i].x - 320);
+    if(w > maxW){ maxW = w; idx = i; }
+  }
+  return idx;
+}
+
+function motionFinalPosFor(g, motionType, idx){
+  if(motionType !== 'jet' && motionType !== 'shift') return null;
+  const pts = offensePoints(g.offKey, g.offCustom);
+  const p = pts[idx];
+  if(!p) return null;
+  if(motionType === 'jet') return { x: 640 - p.x, y: p.y };
+  return { x: p.x + (p.x < 320 ? 45 : -45), y: p.y - 8 }; // shift
+}
+
+function previewMotionAnimation(motionType){
+  if(!game || !game.offKey || !motionType) return;
+  const ly = losY(game.ballOn);
+  const idx = motionManIndex(game);
+  const pts = offensePoints(game.offKey, game.offCustom);
+  const p = pts[idx];
+  if(!p) return;
+  const start = { x:p.x, y:ly+p.y };
+  let end, bend;
+  if(motionType === 'jet'){ end = { x:640-p.x, y:p.y }; bend = 0.35; }
+  else if(motionType === 'orbit'){ end = { x:p.x + (p.x<320?40:-40), y:p.y+15 }; bend = 1.4; }
+  else if(motionType === 'shift'){ end = { x:p.x + (p.x<320?45:-45), y:p.y-8 }; bend = 0.25; }
+  else { end = { x:p.x, y:p.y }; bend = 1.7; } // return: net zero displacement, visible out-and-back arc
+  end = { x: end.x, y: ly + end.y };
+
+  const dyn = document.getElementById('dynamic');
+  if(!dyn) return;
+  const old = document.getElementById('motionPreviewMarker');
+  if(old) old.remove();
+  const marker = makeMarker(start.x, start.y, 'X', 'var(--gold)', false, 0);
+  marker.setAttribute('id','motionPreviewMarker');
+  const lines = marker.querySelectorAll('line');
+  const offsets = Array.from(lines).map(l=>({
+    x1:parseFloat(l.getAttribute('x1')), y1:parseFloat(l.getAttribute('y1')),
+    x2:parseFloat(l.getAttribute('x2')), y2:parseFloat(l.getAttribute('y2')),
+  }));
+  dyn.appendChild(marker);
+
+  const mid = { x:(start.x+end.x)/2, y:(start.y+end.y)/2 };
+  const dx = end.x-start.x, dy = end.y-start.y;
+  const len = Math.hypot(dx,dy) || 1;
+  const perpX = -dy/len, perpY = dx/len;
+  const control = { x: mid.x + perpX*90*bend, y: mid.y + perpY*90*bend };
+
+  const t0 = performance.now();
+  const DURATION = 900;
+  function frame(now){
+    const t = Math.min((now-t0)/DURATION, 1);
+    const pos = quadPoint(start, control, end, easeOutCubic(t));
+    const ddx = pos.x-start.x, ddy = pos.y-start.y;
+    lines.forEach((l,i)=> setAttrs(l, {
+      x1:offsets[i].x1+ddx, y1:offsets[i].y1+ddy, x2:offsets[i].x2+ddx, y2:offsets[i].y2+ddy,
+    }));
+    if(t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function motionControlsBox(){
+  const wrap = document.createElement('div'); wrap.className = 'coach-tip';
+  const rowId = 'motionRow_' + Math.random().toString(36).slice(2,8);
+  wrap.innerHTML = `<span class="coach-label">Motion (optional)</span>
+    <div class="cat-btn-row" id="${rowId}">
+      <button type="button" class="cat-btn${pendingMotion===null?' active':''}" data-motion="">No Motion</button>
+      ${Object.keys(MOTION_TYPES).map(k=>`<button type="button" class="cat-btn${pendingMotion===k?' active':''}" data-motion="${k}">${MOTION_TYPES[k]}</button>`).join('')}
+    </div>`;
+  requestAnimationFrame(()=>{
+    const row = wrap.querySelector('#'+rowId);
+    if(!row) return;
+    row.querySelectorAll('button').forEach(b=>{
+      b.onclick = ()=>{
+        pendingMotion = b.dataset.motion || null;
+        row.querySelectorAll('button').forEach(x=> x.classList.toggle('active', x===b));
+        if(pendingMotion) previewMotionAnimation(pendingMotion);
+      };
+    });
+  });
+  return wrap;
+}
+
+function applyMotionToPlay(g){
+  g.motionType = pendingMotion;
+  if(pendingMotion){
+    g.motionPlayerIndex = motionManIndex(g);
+    g.motionFinalPos = motionFinalPosFor(g, pendingMotion, g.motionPlayerIndex);
+  } else {
+    g.motionPlayerIndex = null;
+    g.motionFinalPos = null;
+  }
+  pendingMotion = null;
+}
+
+
 function formatClock(sec){
   sec = Math.max(0, Math.round(sec));
   const m = Math.floor(sec/60), s = sec%60;
@@ -1478,7 +1589,11 @@ function render(){
 
   if(previewOverride && previewOverride.side==='offense'){
     drawOffense(dyn, previewOverride.key, previewOverride.custom, ly, false);
-  } else if(game.offKey) drawOffense(dyn, game.offKey, game.offCustom, ly, false);
+  } else if(game.offKey){
+    const motionOverride = (game.motionType && game.motionFinalPos)
+      ? {index:game.motionPlayerIndex, pos:game.motionFinalPos} : null;
+    drawOffense(dyn, game.offKey, game.offCustom, ly, false, motionOverride);
+  }
 
   if(previewOverride && previewOverride.side==='defense'){
     drawDefense(dyn, previewOverride.key, previewOverride.custom, ly, false);
@@ -1617,8 +1732,9 @@ function buildPanel(){
     }
   } else if(phase === 'OFF_PLAY'){
     if(myRole==='offense'){
-      const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
-      const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
+      const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; applyMotionToPlay(g); g.phase='DEF_CALL'; });
+      const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; applyMotionToPlay(g); g.phase='DEF_CALL'; });
+      panel.appendChild(motionControlsBox());
       panel.appendChild(choiceGrid(
         "Hidden from the defence \u2014 pick your play.", false,
         groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
@@ -1682,8 +1798,9 @@ function buildLocalPanel(phase){
     }));
 
   } else if(phase === 'OFF_PLAY'){
-    const onPickOff = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='HANDOFF_TO_DEF'; });
-    const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='HANDOFF_TO_DEF'; });
+    const onPickOff = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; applyMotionToPlay(g); g.phase='HANDOFF_TO_DEF'; });
+    const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; applyMotionToPlay(g); g.phase='HANDOFF_TO_DEF'; });
+    panel.appendChild(motionControlsBox());
     panel.appendChild(choiceGrid(
       "Hidden from the defence \u2014 pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom),
@@ -1751,8 +1868,9 @@ function buildAIPanel(phase){
     ));
 
   } else if(phase === 'OFF_PLAY'){
-    const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
-    const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
+    const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; applyMotionToPlay(g); g.phase='DEF_CALL'; });
+    const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; applyMotionToPlay(g); g.phase='DEF_CALL'; });
+    panel.appendChild(motionControlsBox());
     panel.appendChild(choiceGrid(
       "Pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
@@ -1816,6 +1934,13 @@ function aiMaybeAct(){
       writeGame(g=>{
         const pick = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle);
         if(pick.isCustom){ g.offPlayKey=CUSTOM; g.offPlayCustom=pick.item; } else { g.offPlayKey=pick.key; g.offPlayCustom=null; }
+        if(!pick.isCustom && (pick.key==='sweep' || pick.key==='reverse')){
+          g.motionType = 'jet';
+          g.motionPlayerIndex = motionManIndex(g);
+          g.motionFinalPos = motionFinalPosFor(g, 'jet', g.motionPlayerIndex);
+        } else {
+          g.motionType = null; g.motionPlayerIndex = null; g.motionFinalPos = null;
+        }
         g.phase='DEF_CALL';
       });
     } else if(phase==='DEF_CALL'){
@@ -2003,10 +2128,12 @@ function resultBox(){
   const btn = document.createElement('button'); btn.className='primary-btn'; btn.style.marginTop='10px';
   btn.textContent = r.driveOver ? 'Start next drive' : 'Next play';
   btn.onclick = ()=>{
+    pendingMotion = null;
     writeGame(g=>{
       g.offKey=null; g.defFrontKey=null; g.offPlayKey=null; g.defCallKey=null; g.lastResult=null;
       g.offCustom=null; g.defFrontCustom=null; g.offPlayCustom=null; g.defCallCustom=null;
       g.fourthDownDecided = false;
+      g.motionType = null; g.motionPlayerIndex = null; g.motionFinalPos = null;
       g.phase='OFF_FORMATION';
     });
   };
@@ -2043,6 +2170,12 @@ function resolvePlay(g){
   let yards = o.yards;
   let touchdown = false, driveOver = false;
 
+  let motionBonusText = '';
+  if(g.motionType==='jet' && (g.offPlayKey==='sweep' || g.offPlayKey==='reverse') && !o.breakaway){
+    yards += 3;
+    motionBonusText = ' The jet motion sold it \u2014 an extra push outside.';
+  }
+
   if(o.breakaway){
     yards = 100 - g.ballOn;
     touchdown = true; driveOver = true;
@@ -2070,7 +2203,7 @@ function resolvePlay(g){
     || (yards >= 15 && Math.random() < 0.4);
   consumeClock(g, stopsClock);
 
-  g.lastResult = { yards, text:o.text, role:o.role, touchdown, driveOver };
+  g.lastResult = { yards, text:o.text+motionBonusText, role:o.role, touchdown, driveOver };
   if(o.breakaway && touchdown) g.lastResult.text += " Nobody's catching him \u2014 touchdown!";
   if(driveOver && !touchdown) g.lastResult.text += " Turnover on downs \u2014 fresh drive.";
 }
