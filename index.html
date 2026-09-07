@@ -1561,6 +1561,7 @@ function applyMotionToPlay(g){
   pendingMotion = null;
 }
 
+function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
 
 function formatClock(sec){
   sec = Math.max(0, Math.round(sec));
