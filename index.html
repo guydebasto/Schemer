@@ -1628,6 +1628,8 @@ function buildAIPanel(phase){
   const controllingSide = phase==='RESULT' ? null : (isOffPhase ? 'offense' : 'defense');
   const isHumanTurn = controllingSide === myRole;
 
+  aiMaybeAct();
+
   if(controllingSide && !isHumanTurn){
     panel.appendChild(waitingBox("The AI is thinking\u2026"));
     return;
@@ -1683,8 +1685,6 @@ function buildAIPanel(phase){
   } else if(phase === 'RESULT'){
     panel.appendChild(resultBox());
   }
-
-  aiMaybeAct();
 }
 
 function aiMaybeAct(){
