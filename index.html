@@ -589,9 +589,117 @@ function defCoachTip(down, distance, ballOn){
   return "First down \u2014 read their formation, no need to guess yet.";
 }
 
+/* ================= AI opponent ================= */
+
+const AI_DIFFICULTIES = {
+  easy:       { name:"Easy",       exponent:0.3 },
+  medium:     { name:"Medium",     exponent:0.7 },
+  hard:       { name:"Hard",       exponent:1.2 },
+  insane:     { name:"Insane",     exponent:1.8 },
+  impossible: { name:"Impossible", exponent:3.0 },
+};
+
+const OFF_PLAYSTYLES = {
+  balanced:    { name:"Balanced",         weights:{run:1,pass:1,playAction:1,deep:1} },
+  aggressive:  { name:"Aggressive",       weights:{run:0.7,pass:1,playAction:1.2,deep:1.8} },
+  conservative:{ name:"Conservative",     weights:{run:1.8,pass:0.8,playAction:1,deep:0.4} },
+  bigplay:     { name:"Big-Play Hunter",  weights:{run:0.5,pass:0.7,playAction:1.3,deep:2.2} },
+  westcoast:   { name:"West Coast",       weights:{run:0.8,pass:1.8,playAction:1,deep:0.3} },
+  screenheavy: { name:"Screen-Heavy",     weights:{run:1,pass:1.2,playAction:0.8,deep:0.5}, keyBoost:{screen:3} },
+};
+const DEF_PLAYSTYLES = {
+  balanced:    { name:"Balanced",         weights:{runD:1,passD:1,blitz:1} },
+  aggressive:  { name:"Aggressive (Blitz-Heavy)", weights:{runD:0.8,passD:0.8,blitz:2.2} },
+  conservative:{ name:"Conservative (Prevent-Heavy)", weights:{runD:1,passD:1.3,blitz:0.4}, keyBoost:{prevent:2} },
+  zoneheavy:   { name:"Zone-Heavy",       weights:{runD:1,passD:1.2,blitz:0.9}, keyBoost:{zoneDrop:2.5} },
+  manheavy:    { name:"Man-Heavy",        weights:{runD:1,passD:1.1,blitz:1}, keyBoost:{manPress:2.5} },
+  runstuff:    { name:"Run-Stuffing",     weights:{runD:2,passD:0.8,blitz:0.9} },
+};
+
+function situationalOffWeights(down, distance, ballOn){
+  const w = {run:1,pass:1,playAction:1,deep:1};
+  if(distance<=3){ w.run*=1.6; w.deep*=0.5; }
+  else if(distance>=8){ w.pass*=1.4; w.deep*=1.3; w.run*=0.6; }
+  if(down===3 && distance>=7) w.pass*=1.3;
+  if(down===1) w.playAction*=1.2;
+  if(ballOn>=90){ w.deep*=0.4; w.run*=1.3; }
+  if(ballOn<=10) w.deep*=0.6;
+  return w;
+}
+function situationalDefWeights(down, distance, ballOn){
+  const w = {runD:1,passD:1,blitz:1};
+  if(distance<=3){ w.runD*=1.5; w.blitz*=1.1; }
+  else if(distance>=8){ w.passD*=1.4; w.blitz*=1.2; w.runD*=0.6; }
+  if(down===3 && distance>=7){ w.blitz*=1.2; w.passD*=1.2; }
+  if(ballOn>=90) w.passD*=1.3;
+  return w;
+}
+
+function aiWeightedPick(entries, difficultyKey){
+  // entries: [{key,item,isCustom,weight}]
+  const exp = (AI_DIFFICULTIES[difficultyKey]||AI_DIFFICULTIES.medium).exponent;
+  const sharpened = entries.map(e=> ({...e, w: Math.pow(Math.max(0.05,e.weight), exp)}));
+  const total = sharpened.reduce((s,e)=>s+e.w, 0);
+  let r = Math.random()*total;
+  for(const e of sharpened){ r -= e.w; if(r<=0) return e; }
+  return sharpened[sharpened.length-1];
+}
+
+function aiPickPlay(down, distance, ballOn, difficultyKey, styleKey){
+  const style = OFF_PLAYSTYLES[styleKey] || OFF_PLAYSTYLES.balanced;
+  const sit = situationalOffWeights(down, distance, ballOn);
+  const entries = [];
+  Object.keys(plays).forEach(k=>{
+    const cat = plays[k].category;
+    const w = (style.weights[cat]||1) * (sit[cat]||1) * ((style.keyBoost&&style.keyBoost[k])||1);
+    entries.push({key:k, item:plays[k], isCustom:false, weight:w});
+  });
+  customOffPlays.forEach(item=>{
+    const cat = item.category;
+    const w = (style.weights[cat]||1) * (sit[cat]||1);
+    entries.push({key:item.id, item, isCustom:true, weight:w});
+  });
+  return aiWeightedPick(entries, difficultyKey);
+}
+function aiPickCall(down, distance, ballOn, difficultyKey, styleKey){
+  const style = DEF_PLAYSTYLES[styleKey] || DEF_PLAYSTYLES.balanced;
+  const sit = situationalDefWeights(down, distance, ballOn);
+  const entries = [];
+  Object.keys(calls).forEach(k=>{
+    const cat = calls[k].category;
+    const w = (style.weights[cat]||1) * (sit[cat]||1) * ((style.keyBoost&&style.keyBoost[k])||1);
+    entries.push({key:k, item:calls[k], isCustom:false, weight:w});
+  });
+  customDefCalls.forEach(item=>{
+    const cat = item.category;
+    const w = (style.weights[cat]||1) * (sit[cat]||1);
+    entries.push({key:item.id, item, isCustom:true, weight:w});
+  });
+  return aiWeightedPick(entries, difficultyKey);
+}
+function aiPickFormation(down, distance){
+  // cosmetic choice \u2014 lean toward heavier personnel on short yardage, lighter on long yardage
+  const keys = Object.keys(formations);
+  const entries = keys.map(k=>{
+    const p = computeOffPersonnel(formations[k].skill);
+    const backs = parseInt(p[0],10);
+    let w = 1;
+    if(distance<=3) w = 1 + backs*0.4;
+    else if(distance>=8) w = 1 + (2-backs)*0.3;
+    return {key:k, item:formations[k], isCustom:false, weight:Math.max(0.2,w)};
+  });
+  return aiWeightedPick(entries, 'medium');
+}
+function aiPickFront(){
+  const keys = Object.keys(fronts);
+  const entries = keys.map(k=>({key:k, item:fronts[k], isCustom:false, weight:1}));
+  return aiWeightedPick(entries, 'medium');
+}
+
 /* ================= networking / room state ================= */
 
 let editorOverlay = null; // {side,type} when the inline in-game creator is open
+let aiPending = false; // guards against overlapping AI decision timers
 let showPosLabels = false; // toggle: defensive players shown as position abbreviations instead of circles
 
 function refreshCurrentView(){
@@ -629,10 +737,15 @@ function genId(){ return 'c' + Date.now().toString(36) + Math.random().toString(
 const SESSION_KEY = 'schemer:lastSession';
 function roomRef(code){ return db.ref('rooms/' + code); }
 
-function freshGame(){
+function freshGame(opts){
+  opts = opts || {};
   return { seq:0, down:1, distance:10, ballOn:25, phase:'OFF_FORMATION',
     offKey:null, defFrontKey:null, offPlayKey:null, defCallKey:null, lastResult:null,
-    offCustom:null, defFrontCustom:null, offPlayCustom:null, defCallCustom:null };
+    offCustom:null, defFrontCustom:null, offPlayCustom:null, defCallCustom:null,
+    score:0, quarter:1, clock:900, clockOn: !!opts.clockOn, gameOver:false, twoMinuteWarningGiven:false,
+    fourthDownDecided:false,
+    aiSide: opts.aiSide||null, aiDifficulty: opts.aiDifficulty||'medium',
+    aiOffStyle: opts.aiOffStyle||'balanced', aiDefStyle: opts.aiDefStyle||'balanced' };
 }
 
 const CUSTOM = '__custom__';
@@ -662,13 +775,13 @@ function notConfiguredNotice(){
   alert("Online multiplayer needs a Firebase config \u2014 fill in the firebaseConfig object near the top of this file (see the comment above it for instructions).");
 }
 
-async function createRoom(role){
+async function createRoom(role, clockOn){
   if(!FIREBASE_CONFIGURED){ notConfiguredNotice(); return; }
   mode = 'online';
   roomCode = genCode();
   myRole = role;
   roomMeta = { offenseTaken: role==='offense', defenseTaken: role==='defense' };
-  game = freshGame();
+  game = freshGame({ clockOn: !!clockOn });
   try{ await roomRef(roomCode).set({meta:roomMeta, game}); } catch(e){ alert('Could not reach the multiplayer server: ' + e.message); return; }
   lsSetJSON(SESSION_KEY, {roomCode, role});
   appScreen = 'waiting';
@@ -676,13 +789,23 @@ async function createRoom(role){
   attachRoomListener();
 }
 
-function startLocalGame(){
+function startLocalGame(clockOn){
   mode = 'local';
   myRole = null;
   roomCode = null;
   roomMeta = null;
-  game = freshGame();
+  game = freshGame({ clockOn: !!clockOn });
   enterGame();
+}
+
+function startAIGame(humanSide, difficulty, offStyle, defStyle, clockOn){
+  mode = 'ai';
+  myRole = humanSide;
+  roomCode = null;
+  roomMeta = null;
+  game = freshGame({ aiSide: humanSide==='offense'?'defense':'offense', aiDifficulty:difficulty, aiOffStyle:offStyle, aiDefStyle:defStyle, clockOn });
+  enterGame();
+  aiMaybeAct();
 }
 
 async function joinRoom(codeRaw){
@@ -865,6 +988,16 @@ function renderLobby(){
       <div class="lobby-actions">
         <button class="ghost" id="btnLocal">Play locally on this device</button>
       </div>
+      <p class="sub" style="margin-top:8px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px;">
+          <input type="checkbox" id="localClockToggle"> Use an NFL-style game clock
+        </label>
+      </p>
+      <div class="divider"></div>
+      <p class="sub">Nobody around? Play the computer.</p>
+      <div class="lobby-actions">
+        <button class="ghost" id="btnAI">Play vs AI</button>
+      </div>
       <div class="divider"></div>
       <p class="sub">Want your own formations and plays?</p>
       <div class="lobby-actions">
@@ -873,8 +1006,62 @@ function renderLobby(){
     lobby.appendChild(c);
     document.getElementById('btnCreate').onclick = ()=>{ appScreen='choose-role'; renderLobby(); };
     document.getElementById('btnJoin').onclick = ()=>{ appScreen='join-code'; renderLobby(); };
-    document.getElementById('btnLocal').onclick = startLocalGame;
+    document.getElementById('btnLocal').onclick = ()=> startLocalGame(document.getElementById('localClockToggle').checked);
+    document.getElementById('btnAI').onclick = ()=>{ appScreen='ai-setup'; renderLobby(); };
     document.getElementById('btnEditor').onclick = ()=>{ appScreen='editor'; edInit(); renderLobby(); };
+    return;
+  }
+
+  if(appScreen === 'ai-setup'){
+    const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
+    c.innerHTML = `
+      <h2 style="text-align:center;">Play vs AI</h2>
+      <div class="ed-toolbar">
+        <div class="seg-toggle" id="aiSideToggle">
+          <button data-side="offense" class="active">Play Offence</button>
+          <button data-side="defense">Play Defence</button>
+        </div>
+      </div>
+      <p class="sub" style="margin-top:10px;">Difficulty</p>
+      <select class="ed-select" id="aiDifficulty" style="width:100%;">
+        ${Object.keys(AI_DIFFICULTIES).map(k=>`<option value="${k}" ${k==='medium'?'selected':''}>${AI_DIFFICULTIES[k].name}</option>`).join('')}
+      </select>
+      <p class="sub" style="margin-top:14px;">Opponent playstyle</p>
+      <select class="ed-select" id="aiStyle" style="width:100%;"></select>
+      <p class="sub" style="margin-top:14px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="aiClockToggle"> Use an NFL-style game clock (4 quarters, runoff, 2-minute warning)
+        </label>
+      </p>
+      <div class="lobby-actions" style="margin-top:16px;">
+        <button id="aiStartBtn">Start game</button>
+        <button class="ghost" id="aiBackBtn">Back</button>
+      </div>`;
+    lobby.appendChild(c);
+
+    function refreshStyleOptions(){
+      const humanSide = document.querySelector('#aiSideToggle button.active').dataset.side;
+      const aiControls = humanSide==='offense' ? 'defense' : 'offense';
+      const dict = aiControls==='offense' ? OFF_PLAYSTYLES : DEF_PLAYSTYLES;
+      document.getElementById('aiStyle').innerHTML = Object.keys(dict).map(k=>`<option value="${k}">${dict[k].name}</option>`).join('');
+    }
+    refreshStyleOptions();
+
+    document.querySelectorAll('#aiSideToggle button').forEach(b=> b.onclick = ()=>{
+      document.querySelectorAll('#aiSideToggle button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      refreshStyleOptions();
+    });
+    document.getElementById('aiBackBtn').onclick = ()=>{ appScreen='landing'; renderLobby(); };
+    document.getElementById('aiStartBtn').onclick = ()=>{
+      const humanSide = document.querySelector('#aiSideToggle button.active').dataset.side;
+      const difficulty = document.getElementById('aiDifficulty').value;
+      const styleVal = document.getElementById('aiStyle').value;
+      const clockOn = document.getElementById('aiClockToggle').checked;
+      const offStyle = humanSide==='offense' ? 'balanced' : styleVal;
+      const defStyle = humanSide==='defense' ? 'balanced' : styleVal;
+      startAIGame(humanSide, difficulty, offStyle, defStyle, clockOn);
+    };
     return;
   }
 
@@ -884,10 +1071,14 @@ function renderLobby(){
     const pick = document.createElement('div'); pick.className='role-pick';
     const bOff = document.createElement('button'); bOff.textContent='Offence';
     const bDef = document.createElement('button'); bDef.className='ghost'; bDef.textContent='Defence';
-    bOff.onclick = ()=> createRoom('offense');
-    bDef.onclick = ()=> createRoom('defense');
+    bOff.onclick = ()=> createRoom('offense', document.getElementById('onlineClockToggle').checked);
+    bDef.onclick = ()=> createRoom('defense', document.getElementById('onlineClockToggle').checked);
     pick.appendChild(bOff); pick.appendChild(bDef);
     c.appendChild(pick);
+    const clockRow = document.createElement('p'); clockRow.className='sub'; clockRow.style.marginTop='14px';
+    clockRow.innerHTML = `<label style="display:flex; align-items:center; gap:8px; cursor:pointer; justify-content:center;">
+      <input type="checkbox" id="onlineClockToggle"> Use an NFL-style game clock</label>`;
+    c.appendChild(clockRow);
     const back = document.createElement('div'); back.className='footer-link';
     back.innerHTML = '<a id="backLink">back</a>';
     c.appendChild(back);
@@ -1150,6 +1341,11 @@ function drawPlayResult(dyn, ly, animate){
 }
 
 function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
+function formatClock(sec){
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  return m + ':' + (s<10?'0':'') + s;
+}
 
 /* ================= main render ================= */
 
@@ -1177,7 +1373,9 @@ function render(){
   }
 
   document.getElementById('downBug').innerHTML =
-    `<b>${ordinal(game.down)} &amp; ${game.distance}</b><br>ball on ${Math.round(game.ballOn)}`;
+    `<b>${ordinal(game.down)} &amp; ${game.distance}</b><br>ball on ${Math.round(game.ballOn)}`
+    + `<br>score: ${game.score}`
+    + (game.clockOn ? `<br>Q${game.quarter} \u2014 ${formatClock(game.clock)}` : '');
   const roleBug = document.getElementById('roleBug');
   if(mode === 'local'){
     roleBug.className = 'role-bug';
@@ -1259,8 +1457,17 @@ function buildPanel(){
     return;
   }
 
+  if(mode === 'ai'){
+    buildAIPanel(phase);
+    requestAnimationFrame(()=>{ panel.style.opacity = '1'; });
+    return;
+  }
+
   if(phase === 'OFF_FORMATION'){
     if(myRole==='offense'){
+      if(game.down===4 && !game.fourthDownDecided){
+        panel.appendChild(fourthDownChoiceBox());
+      } else {
       panel.appendChild(choiceGrid(
         "Choose a formation \u2014 the defence will see it and line up across from you.", false,
         groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
@@ -1268,6 +1475,8 @@ function buildPanel(){
           item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
         ()=> openEditor('offense','formation'), 'Create your own formation'
       ));
+      if(kneelAvailable(game)) panel.appendChild(kneelButton());
+      }
     } else {
       panel.appendChild(waitingBox("Offence is choosing a formation\u2026"));
     }
@@ -1320,6 +1529,10 @@ function buildPanel(){
 
 function buildLocalPanel(phase){
   if(phase === 'OFF_FORMATION'){
+    if(game.down===4 && !game.fourthDownDecided){
+      panel.appendChild(fourthDownChoiceBox());
+      return;
+    }
     panel.appendChild(choiceGrid(
       "Offence: choose a formation \u2014 the defence will see it and line up across from you.", false,
       groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
@@ -1327,6 +1540,7 @@ function buildLocalPanel(phase){
         item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
       ()=> openEditor('offense','formation'), 'Create your own formation'
     ));
+    if(kneelAvailable(game)) panel.appendChild(kneelButton());
 
   } else if(phase === 'DEF_FRONT'){
     panel.appendChild(choiceGrid(
@@ -1373,6 +1587,121 @@ function buildLocalPanel(phase){
     panel.appendChild(resultBox());
   }
 }
+
+function buildAIPanel(phase){
+  const isOffPhase = (phase==='OFF_FORMATION' || phase==='OFF_PLAY');
+  const controllingSide = phase==='RESULT' ? null : (isOffPhase ? 'offense' : 'defense');
+  const isHumanTurn = controllingSide === myRole;
+
+  if(controllingSide && !isHumanTurn){
+    panel.appendChild(waitingBox("The AI is thinking\u2026"));
+    return;
+  }
+
+  if(phase === 'OFF_FORMATION'){
+    if(game.down===4 && !game.fourthDownDecided){
+      panel.appendChild(fourthDownChoiceBox());
+      return;
+    }
+    panel.appendChild(choiceGrid(
+      "Choose a formation \u2014 the defence will see it and line up across from you.", false,
+      groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
+        k=>writeGame(g=>{ g.offKey=k; g.offCustom=null; g.phase='DEF_FRONT'; }),
+        item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
+      ()=> openEditor('offense','formation'), 'Create your own formation'
+    ));
+    if(kneelAvailable(game)) panel.appendChild(kneelButton());
+
+  } else if(phase === 'DEF_FRONT'){
+    panel.appendChild(choiceGrid(
+      "Choose a front to match the offence's personnel.", true,
+      groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
+        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
+        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; })),
+      ()=> openEditor('defense','formation'), 'Create your own front'
+    ));
+
+  } else if(phase === 'OFF_PLAY'){
+    const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
+    const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
+    panel.appendChild(choiceGrid(
+      "Pick your play.", false,
+      groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
+      ()=> openEditor('offense','play'), 'Create your own play',
+      text=> handleTypedPlay(text, onPick, onPickCustom),
+      offCoachTip(game.down, game.distance, game.ballOn)
+    ));
+
+  } else if(phase === 'DEF_CALL'){
+    const onPick = k=>writeGame(g=>{ g.defCallKey=k; g.defCallCustom=null; resolvePlay(g); g.phase='RESULT'; });
+    const onPickCustom = item=>writeGame(g=>{ g.defCallKey=CUSTOM; g.defCallCustom=item; resolvePlay(g); g.phase='RESULT'; });
+    panel.appendChild(choiceGrid(
+      "Make your defensive call.", true,
+      groupsByCategory(calls, customDefCalls, CALL_CATEGORIES, onPick, onPickCustom),
+      ()=> openEditor('defense','play'), 'Create your own call',
+      text=> handleTypedCall(text, onPick, onPickCustom),
+      defCoachTip(game.down, game.distance, game.ballOn)
+    ));
+
+  } else if(phase === 'RESULT'){
+    panel.appendChild(resultBox());
+  }
+
+  aiMaybeAct();
+}
+
+function aiMaybeAct(){
+  if(mode !== 'ai' || !game || game.phase === 'RESULT') return;
+  const phase = game.phase;
+  const side = (phase==='OFF_FORMATION'||phase==='OFF_PLAY') ? 'offense' : (phase==='DEF_FRONT'||phase==='DEF_CALL') ? 'defense' : null;
+  if(side !== game.aiSide) return;
+  if(aiPending) return;
+  aiPending = true;
+
+  setTimeout(()=>{
+    aiPending = false;
+    if(mode!=='ai' || game.phase!==phase) return; // stale timer guard
+    if(phase==='OFF_FORMATION' && game.down===4 && !game.fourthDownDecided){
+      const choice = aiPickFourthDownChoice(game.distance, game.ballOn, game.aiOffStyle);
+      writeGame(g=>{
+        if(choice==='punt'){ resolvePunt(g); g.phase='RESULT'; return; }
+        if(choice==='fg'){ resolveFieldGoal(g); g.phase='RESULT'; return; }
+        g.fourthDownDecided = true;
+        const pick = aiPickFormation(g.down, g.distance);
+        if(pick.isCustom){ g.offKey=CUSTOM; g.offCustom=pick.item; } else { g.offKey=pick.key; g.offCustom=null; }
+        g.phase='DEF_FRONT';
+      });
+      return;
+    }
+    if(phase==='OFF_FORMATION'){
+      writeGame(g=>{
+        const pick = aiPickFormation(g.down, g.distance);
+        if(pick.isCustom){ g.offKey=CUSTOM; g.offCustom=pick.item; } else { g.offKey=pick.key; g.offCustom=null; }
+        g.phase='DEF_FRONT';
+      });
+    } else if(phase==='DEF_FRONT'){
+      writeGame(g=>{
+        const pick = aiPickFront();
+        g.defFrontKey = pick.key; g.defFrontCustom = null;
+        g.phase='OFF_PLAY';
+      });
+    } else if(phase==='OFF_PLAY'){
+      writeGame(g=>{
+        const pick = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle);
+        if(pick.isCustom){ g.offPlayKey=CUSTOM; g.offPlayCustom=pick.item; } else { g.offPlayKey=pick.key; g.offPlayCustom=null; }
+        g.phase='DEF_CALL';
+      });
+    } else if(phase==='DEF_CALL'){
+      writeGame(g=>{
+        const pick = aiPickCall(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiDefStyle);
+        if(pick.isCustom){ g.defCallKey=CUSTOM; g.defCallCustom=pick.item; } else { g.defCallKey=pick.key; g.defCallCustom=null; }
+        resolvePlay(g);
+        g.phase='RESULT';
+      });
+    }
+  }, 700);
+}
+
 
 function handoffBox(msg, btnLabel, onGo){
   const wrap = document.createElement('div'); wrap.className='waiting';
@@ -1475,22 +1804,40 @@ function note(msg){ const d = document.createElement('div'); d.className='prompt
 function resultBox(){
   const r = game.lastResult;
   const wrap = document.createElement('div'); wrap.className='result-box';
+
+  if(game.gameOver){
+    wrap.innerHTML += `<div class="td">GAME OVER</div>`;
+    wrap.innerHTML += `<div class="yards">Final score: ${game.score}</div>`;
+    if(r && r.text) wrap.innerHTML += `<div class="story">${r.text}</div>`;
+    const btn = document.createElement('button'); btn.className='primary-btn'; btn.style.marginTop='10px';
+    btn.textContent = 'New game';
+    btn.onclick = ()=> goToScreen('landing');
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
   if(r.touchdown) wrap.innerHTML += `<div class="td">TOUCHDOWN</div>`;
-  wrap.innerHTML += `<div class="yards">${r.yards===0 ? 'No gain' : (r.yards+' yard'+(r.yards===1?'':'s'))}</div>`;
+  if(r.fieldGoalMade) wrap.innerHTML += `<div class="td">FIELD GOAL</div>`;
+  wrap.innerHTML += `<div class="yards">${r.yards===0 ? 'No gain' : (r.yards+' yard'+(Math.abs(r.yards)===1?'':'s'))}</div>`;
   wrap.innerHTML += `<div class="story">${r.text}</div>`;
-  const meta = document.createElement('div'); meta.className='prompt';
-  const formObj = getFormation(game.offKey, game.offCustom);
-  const frontObj = getFront(game.defFrontKey, game.defFrontCustom);
-  const playObj = getPlay(game.offPlayKey, game.offPlayCustom);
-  const callObj = getCall(game.defCallKey, game.defCallCustom);
-  meta.innerHTML = `<em>${formObj.name}</em> vs <em>${frontObj.name}</em> \u2014 ${playObj.name} into ${callObj.name}.`;
-  wrap.appendChild(meta);
+  if(!r.special){
+    const meta = document.createElement('div'); meta.className='prompt';
+    const formObj = getFormation(game.offKey, game.offCustom);
+    const frontObj = getFront(game.defFrontKey, game.defFrontCustom);
+    const playObj = getPlay(game.offPlayKey, game.offPlayCustom);
+    const callObj = getCall(game.defCallKey, game.defCallCustom);
+    if(formObj && frontObj && playObj && callObj){
+      meta.innerHTML = `<em>${formObj.name}</em> vs <em>${frontObj.name}</em> \u2014 ${playObj.name} into ${callObj.name}.`;
+      wrap.appendChild(meta);
+    }
+  }
   const btn = document.createElement('button'); btn.className='primary-btn'; btn.style.marginTop='10px';
   btn.textContent = r.driveOver ? 'Start next drive' : 'Next play';
   btn.onclick = ()=>{
     writeGame(g=>{
       g.offKey=null; g.defFrontKey=null; g.offPlayKey=null; g.defCallKey=null; g.lastResult=null;
       g.offCustom=null; g.defFrontCustom=null; g.offPlayCustom=null; g.defCallCustom=null;
+      g.fourthDownDecided = false;
       g.phase='OFF_FORMATION';
     });
   };
@@ -1498,8 +1845,32 @@ function resultBox(){
   return wrap;
 }
 
+function consumeClock(g, stopsClock){
+  if(!g.clockOn || g.gameOver) return;
+  const playDuration = 6;
+  const runoff = stopsClock ? 0 : 38;
+  let total = playDuration + runoff;
+  const before = g.clock;
+  g.clock -= total;
+  if((g.quarter===2||g.quarter===4) && !g.twoMinuteWarningGiven && before >= 120 && g.clock < 120){
+    g.clock = 120;
+    g.twoMinuteWarningGiven = true;
+  }
+  if(g.clock <= 0){
+    g.clock = 0;
+    if(g.quarter < 4){
+      g.quarter += 1;
+      g.clock = 900;
+      g.twoMinuteWarningGiven = false;
+    } else {
+      g.gameOver = true;
+    }
+  }
+}
+
 function resolvePlay(g){
   const o = computeOutcome(g);
+  const playObj = getPlay(g.offPlayKey, g.offPlayCustom);
   let yards = o.yards;
   let touchdown = false, driveOver = false;
 
@@ -1522,11 +1893,99 @@ function resolvePlay(g){
     }
   }
 
+  if(touchdown) g.score += 7;
   if(driveOver){ g.ballOn = 25; g.down = 1; g.distance = 10; }
+
+  const stopsClock = touchdown
+    || (yards <= 0 && (playObj.category==='pass'||playObj.category==='deep'||playObj.category==='playAction'))
+    || (yards >= 15 && Math.random() < 0.4);
+  consumeClock(g, stopsClock);
 
   g.lastResult = { yards, text:o.text, role:o.role, touchdown, driveOver };
   if(o.breakaway && touchdown) g.lastResult.text += " Nobody's catching him \u2014 touchdown!";
   if(driveOver && !touchdown) g.lastResult.text += " Turnover on downs \u2014 fresh drive.";
+}
+
+function resolvePunt(g){
+  g.lastResult = { yards:0, text:"The punt team trots out \u2014 fresh start for the defence.", role:null, touchdown:false, driveOver:true, special:true };
+  g.ballOn = 25; g.down = 1; g.distance = 10;
+  consumeClock(g, true);
+}
+
+function resolveFieldGoal(g){
+  const kickDistance = (100 - g.ballOn) + 17;
+  let chance;
+  if(kickDistance<=30) chance=0.98;
+  else if(kickDistance<=40) chance=0.90;
+  else if(kickDistance<=50) chance=0.75;
+  else if(kickDistance<=55) chance=0.55;
+  else if(kickDistance<=60) chance=0.30;
+  else chance=0.10;
+  const made = Math.random() < chance;
+  if(made) g.score += 3;
+  g.lastResult = { yards:0, text: made
+    ? `The ${kickDistance}-yard field goal attempt is good!`
+    : `The ${kickDistance}-yard field goal attempt is no good.`,
+    role:null, touchdown:false, driveOver:true, special:true, fieldGoalMade:made };
+  g.ballOn = 25; g.down = 1; g.distance = 10;
+  consumeClock(g, true);
+}
+
+function resolveKneel(g){
+  g.lastResult = { yards:-1, text:"Quarterback takes a knee \u2014 running the clock down.", role:null, touchdown:false, driveOver:false, special:true };
+  g.ballOn = Math.max(0, g.ballOn - 1);
+  g.down += 1; g.distance += 1;
+  if(g.down > 4){ g.down=1; g.distance=10; g.ballOn=25; g.lastResult.driveOver=true; }
+  consumeClock(g, false);
+}
+
+function aiPickFourthDownChoice(distance, ballOn, styleKey){
+  const style = OFF_PLAYSTYLES[styleKey] || OFF_PLAYSTYLES.balanced;
+  const boldness = (style.weights.deep + style.weights.playAction) / 2;
+  const fgRange = ballOn >= 60;
+  let goForItChance = (distance <= 2 ? 0.6 : 0.15) * (0.6 + boldness*0.4);
+  goForItChance = Math.min(0.9, goForItChance);
+  if(Math.random() < goForItChance) return 'goForIt';
+  return fgRange ? 'fg' : 'punt';
+}
+
+function kneelAvailable(g){
+  return g.clockOn && (g.quarter===2 || g.quarter===4) && g.clock <= 120 && !g.gameOver;
+}
+function kneelButton(){
+  const btn = document.createElement('button');
+  btn.className = 'create-new-btn';
+  btn.textContent = 'Kneel it down (run out the clock)';
+  btn.onclick = ()=> writeGame(g=>{ resolveKneel(g); g.phase='RESULT'; });
+  return btn;
+}
+
+function fourthDownChoiceBox(){
+  const wrap = document.createElement('div');
+  const p = document.createElement('div'); p.className='prompt';
+  p.innerHTML = `<em>Fourth down.</em> Go for it, or play it safe?`;
+  wrap.appendChild(p);
+  const grid = document.createElement('div'); grid.className='choice-grid';
+
+  const goBtn = document.createElement('button'); goBtn.className='choice-btn';
+  goBtn.innerHTML = `<span class="name">Go for it</span><span class="desc">Attempt a normal play \u2014 convert or turn it over right here.</span>`;
+  goBtn.onclick = ()=> writeGame(g=>{ g.fourthDownDecided = true; });
+
+  const puntBtn = document.createElement('button'); puntBtn.className='choice-btn';
+  puntBtn.innerHTML = `<span class="name">Punt</span><span class="desc">Give up this drive safely \u2014 a guaranteed fresh set of downs.</span>`;
+  puntBtn.onclick = ()=> writeGame(g=>{ resolvePunt(g); g.phase='RESULT'; });
+
+  grid.appendChild(goBtn); grid.appendChild(puntBtn);
+
+  if(game.ballOn >= 60){
+    const kickDist = (100-game.ballOn)+17;
+    const fgBtn = document.createElement('button'); fgBtn.className='choice-btn';
+    fgBtn.innerHTML = `<span class="name">Kick a field goal</span><span class="desc">${kickDist}-yard attempt \u2014 worth 3 points if it's good.</span>`;
+    fgBtn.onclick = ()=> writeGame(g=>{ resolveFieldGoal(g); g.phase='RESULT'; });
+    grid.appendChild(fgBtn);
+  }
+  wrap.appendChild(grid);
+  return wrap;
 }
 
 /* ================= editor ================= */
