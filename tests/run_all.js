@@ -143,11 +143,11 @@ console.log('\n=== 5. Motion: collision avoidance, LOS clamp, and arc safety ===
   assert(losIssues.length === 0, 'motion always stays 0.76-6.7yd behind the line', losIssues.join('; '));
 }
 
-console.log('\n=== 6. Route generation stays in bounds and behind the line ===');
+console.log('\n=== 6. Route generation stays in bounds and never goes behind where the receiver started ===');
 {
   const { w } = freshWindow();
   const { plays, formations, routeEndpointsFor, losY } = w.__exports;
-  const passPlays = ['quickPass','playActionDeep','deepPass','stick','flood','mesh','smash'];
+  const passPlays = Object.keys(plays).filter(k => typeof plays[k].routes === 'function');
   let issues = [];
   Object.keys(formations).forEach(formKey => {
     passPlays.forEach(playKey => {
@@ -156,8 +156,11 @@ console.log('\n=== 6. Route generation stays in bounds and behind the line ===')
       try { endpoints = routeEndpointsFor(plays[playKey], formKey, null, ly); }
       catch(e){ issues.push(`${formKey}/${playKey} threw: ${e.message}`); return; }
       if (endpoints.length !== 6) issues.push(`${formKey}/${playKey} produced ${endpoints.length} routes, expected 6`);
-      endpoints.forEach(({end}) => {
-        if (end.x < 40 || end.x > 600 || end.y > ly + 2) issues.push(`${formKey}/${playKey} route out of bounds: ${JSON.stringify(end)}`);
+      endpoints.forEach(({start,mid,end}) => {
+        [mid, end].filter(Boolean).forEach(pt=>{
+          if (pt.x < 40 || pt.x > 600) issues.push(`${formKey}/${playKey} route off the field: ${JSON.stringify(pt)}`);
+          if (pt.y > start.y + 0.5) issues.push(`${formKey}/${playKey} route went behind its own receiver's start: ${JSON.stringify(pt)} vs start ${start.y}`);
+        });
       });
     });
   });
@@ -504,6 +507,38 @@ console.log('\n=== 21. Trainer mode: structural integrity across many rounds ===
   assert(!!nextBtn, '"Next look" button appears after answering');
   nextBtn.click();
   assert(w.__getTrainerState().totalCount === 1 && w.__getTrainerState().answered === false, 'starting the next round keeps score and resets the answered state');
+}
+
+console.log('\n=== 22. Route depths match reality, and no two receivers ever collide ===');
+{
+  const { w } = freshWindow();
+  const { plays, formations, routeEndpointsFor, losY } = w.__exports;
+  const ly = losY(50);
+
+  const deepPassDepth = (ly - routeEndpointsFor(plays.deepPass, 'singleback', null, ly)[0].end.y) / 10.5;
+  const daggerDepth = (ly - routeEndpointsFor(plays.dagger, 'singleback', null, ly)[2].end.y) / 10.5; // index 2 = a WR (index 1 is the RB, who gets the other route half)
+  const fadeDepth = (ly - routeEndpointsFor(plays.fade, 'singleback', null, ly)[0].end.y) / 10.5;
+  const meshDepth = (ly - routeEndpointsFor(plays.mesh, 'singleback', null, ly)[0].end.y) / 10.5;
+  assert(deepPassDepth > 15, `Four Verticals actually runs deep (${deepPassDepth.toFixed(1)}yd)`, deepPassDepth);
+  assert(daggerDepth > 15, `Dagger's vertical clearout actually runs deep (${daggerDepth.toFixed(1)}yd)`, daggerDepth);
+  assert(fadeDepth > 12, `Fade actually runs deep (${fadeDepth.toFixed(1)}yd)`, fadeDepth);
+  assert(meshDepth < 8, `Mesh stays properly shallow (${meshDepth.toFixed(1)}yd), as a real quick-game concept should`, meshDepth);
+
+  const passPlayKeys = Object.keys(plays).filter(k => typeof plays[k].routes === 'function');
+  let collisions = 0;
+  Object.keys(formations).forEach(formKey=>{
+    passPlayKeys.forEach(playKey=>{
+      const eps = routeEndpointsFor(plays[playKey], formKey, null, ly);
+      for(let i=0;i<eps.length;i++) for(let j=i+1;j<eps.length;j++){
+        if(Math.hypot(eps[i].end.x-eps[j].end.x, eps[i].end.y-eps[j].end.y) < 5) collisions++;
+      }
+    });
+  });
+  assert(collisions === 0, 'no two receivers ever land on the same spot, across every formation and route play', collisions);
+
+  const screenEps = routeEndpointsFor(plays.screen, 'singleback', null, ly);
+  const qbEnd = screenEps[0].end, rbEnd = screenEps[1].end;
+  assert(Math.abs(qbEnd.y - rbEnd.y) > 15, 'backfield players (QB/RB) preserve their relative depth instead of both snapping to the same point', `QB.y=${qbEnd.y} RB.y=${rbEnd.y}`);
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

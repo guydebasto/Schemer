@@ -400,27 +400,32 @@ const plays = {
   sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run', needsBack:true, core:true },
   quickPass:      { name:"Slants",          note:"Everyone cuts inside on a sharp, quick angle \u2014 beats soft zone before it can react, but a jumped route against press coverage gets picked off clean.",
     xTarget:350, bend:0.25, category:'pass', core:true,
-    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-16}, brk:{dx:-side*42,dy:-38} }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-16}, brk:{dx:-side*42,dy:-44} }; } },
   playActionDeep: { name:"PA Deep Post",    note:"Sell the run fake, then break the post over the top of it.",           xTarget:390, bend:0.3,  category:'playAction', needsBack:true, core:true,
-    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-58}, brk:{dx:-side*42,dy:-38} }; } },
-  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass', core:true },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:0,dy:-90}, brk:{dx:-side*48,dy:-78} }; } },
+  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass', core:true,
+    routes:(p,i)=>{
+      const towardBall = 578 >= p.x ? 1 : -1; // everyone drifts toward the side the ball is actually going
+      if(i===7) return { stem:{dx:towardBall*30,dy:-6}, brk:{dx:towardBall*90,dy:-4} }; // the screen's actual target: stays shallow, releases toward the catch point
+      return { stem:{dx:towardBall*15,dy:-14}, brk:{dx:towardBall*(35+i*3),dy:-6} }; // everyone else releases short, then gets out in front to block (slight per-index spread avoids bunched formations converging)
+    } },
   draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run', needsBack:true, core:true },
   deepPass:       { name:"Four Verticals",  note:"All four eligible receivers take it straight up the field \u2014 stretches a single deep safety thin, but a two-deep shell has the numbers to match every route.",
     xTarget:355, bend:0.15, category:'deep', core:true,
-    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*4,dy:-66}, brk:{dx:side*4,dy:-32} }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*4,dy:-150}, brk:{dx:side*4,dy:-80} }; } },
   reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run', needsBack:true, core:true },
   stick:          { name:"Stick",           note:"Settle into the soft spot underneath, with a receiver in the flat for the quick check-down \u2014 gets the ball out before pressure ever arrives.",
     xTarget:400, bend:0.35, category:'pass',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-46}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-10}, brk:{dx:side*40,dy:-10} }; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-46}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-14}, brk:{dx:side*40,dy:-18} }; } },
   flood:          { name:"Flood",           note:"Three receivers stack one side at three different depths \u2014 overloads whoever's covering that zone, but man coverage just runs with each of them individually.",
     xTarget:480, bend:0.6, category:'pass',
-    routes:(p,i)=>{ const shapes=[{stem:{dx:20,dy:-16},brk:{dx:40,dy:-8}},{stem:{dx:15,dy:-45},brk:{dx:45,dy:-20}},{stem:{dx:10,dy:-70},brk:{dx:55,dy:-30}}]; return shapes[i%3]; } },
+    routes:(p,i)=>{ const shapes=[{stem:{dx:20,dy:-16},brk:{dx:40,dy:-8}},{stem:{dx:15,dy:-65},brk:{dx:45,dy:-30}},{stem:{dx:10,dy:-90},brk:{dx:55,dy:-57}}]; return shapes[i%3]; } },
   mesh:           { name:"Mesh",            note:"Two routes cross shallow underneath \u2014 the pick is basically built in against man coverage, though zone defenders just pass receivers off through it.",
     xTarget:350, bend:0.3, category:'pass',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:-side*20,dy:-22}, brk:{dx:-side*75,dy:-18} }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:-side*20,dy:-26}, brk:{dx:-side*75,dy:-27} }; } },
   smash:          { name:"Smash",           note:"A quick hitch underneath, a corner route over the top \u2014 a classic high-low read that punishes a two-deep flat defender.",
     xTarget:460, bend:0.55, category:'pass',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:side*6,dy:-22}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-55}, brk:{dx:side*58,dy:-24} }; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:side*6,dy:-22}, brk:{dx:side*8,dy:2} } : { stem:{dx:0,dy:-80}, brk:{dx:side*62,dy:-57} }; } },
   power:          { name:"Power",           note:"A guard pulls across the formation to lead through the hole \u2014 a physical, downhill gap scheme.", xTarget:300, bend:0.15, category:'run', needsBack:true },
   counter:        { name:"Counter",         note:"The backfield flows one way, then the ball cuts back against the grain \u2014 misdirection with real power behind it.", xTarget:480, bend:0.55, category:'run', needsBack:true },
   zoneRead:       { name:"Zone Read",       note:"The quarterback reads the unblocked end \u2014 hand it off, or keep it himself if the end crashes down.", xTarget:420, bend:0.4, category:'run', needsBack:true },
@@ -428,19 +433,19 @@ const plays = {
   trap:           { name:"Trap",            note:"Let a defensive lineman charge upfield untouched, then trap-block him from the side \u2014 he takes himself out of the play.", xTarget:300, bend:0.1, category:'run', needsBack:true },
   curlFlat:       { name:"Curl-Flat",       note:"A curl settling in underneath, a flat route stretching outside it \u2014 a bread-and-butter zone-beater on the perimeter.",
     xTarget:440, bend:0.4, category:'pass',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-48}, brk:{dx:side*8,dy:10} } : { stem:{dx:0,dy:-12}, brk:{dx:side*46,dy:-10} }; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-110}, brk:{dx:side*8,dy:16} } : { stem:{dx:0,dy:-14}, brk:{dx:side*44,dy:-18} }; } },
   dagger:         { name:"Dagger",          note:"A deep dig sits down in the middle behind a clearing vertical route \u2014 the vertical pulls coverage away and opens the window for the dig.",
     xTarget:380, bend:0.3, category:'deep',
-    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-68}, brk:{dx:-side*58,dy:-14} } : { stem:{dx:side*6,dy:-70}, brk:{dx:0,dy:-20} }; } },
+    routes:(p,i)=>{ const side = p.x<320?-1:1; return (i%2===0) ? { stem:{dx:0,dy:-140}, brk:{dx:-side*60,dy:-38} } : { stem:{dx:side*6,dy:-160}, brk:{dx:side*4,dy:-81} }; } },
   hitch:          { name:"Hitch",           note:"Everyone stops short and turns back to the quarterback \u2014 low risk, quick and simple, but rarely a big gain.",
     xTarget:400, bend:0.2, category:'pass',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*5,dy:-36}, brk:{dx:0,dy:4} }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*5,dy:-50}, brk:{dx:0,dy:3} }; } },
   fade:           { name:"Fade",            note:"A go route with a lean toward the sideline \u2014 a back-shoulder shot that lets the receiver adjust away from tight coverage.",
     xTarget:480, bend:0.35, category:'deep',
-    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*10,dy:-70}, brk:{dx:side*18,dy:-24} }; } },
+    routes:(p)=>{ const side = p.x<320?-1:1; return { stem:{dx:side*10,dy:-140}, brk:{dx:side*20,dy:-49} }; } },
   paBootleg:      { name:"PA Bootleg",      note:"Fake the handoff, then roll out away from the flow \u2014 buys the quarterback a clean look at routes breaking toward the edge he's rolling to.",
     xTarget:420, bend:0.4, category:'playAction', needsBack:true,
-    routes:(p,i)=>{ return { stem:{dx:10,dy:-20-(i%3)*8}, brk:{dx:32,dy:-28-(i%3)*6} }; } },
+    routes:(p,i)=>{ return { stem:{dx:10,dy:-60-(i%3)*30}, brk:{dx:34,dy:-40-(i%3)*20} }; } },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
 
@@ -1713,8 +1718,8 @@ function routeRawFor(play, p, i){
   return synthesizeRouteOffset(p, play.category, i);
 }
 
-function clampRoutePoint(pt, ly){
-  return { x: Math.max(48, Math.min(592, pt.x)), y: Math.min(ly, pt.y) };
+function clampRoutePoint(pt, startY){
+  return { x: Math.max(48, Math.min(592, pt.x)), y: Math.min(startY, pt.y) };
 }
 
 // Returns {start, mid, end} for each receiver. mid is null for a simple straight route (one
@@ -1730,10 +1735,10 @@ function routeEndpointsFor(play, offKey, offCustom, ly){
     let mid = null, end;
     if(raw && (raw.stem || raw.brk)){
       const stem = raw.stem || {dx:0,dy:0}, brk = raw.brk || {dx:0,dy:0};
-      mid = clampRoutePoint({ x: start.x + stem.dx, y: start.y + stem.dy }, ly);
-      end = clampRoutePoint({ x: mid.x + brk.dx, y: mid.y + brk.dy }, ly);
+      mid = clampRoutePoint({ x: start.x + stem.dx, y: start.y + stem.dy }, start.y);
+      end = clampRoutePoint({ x: mid.x + brk.dx, y: mid.y + brk.dy }, start.y);
     } else {
-      end = clampRoutePoint({ x: start.x + raw.dx, y: start.y + raw.dy }, ly);
+      end = clampRoutePoint({ x: start.x + raw.dx, y: start.y + raw.dy }, start.y);
     }
     list.push({ start, mid, end });
   }
