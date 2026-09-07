@@ -306,66 +306,66 @@ const db = FIREBASE_CONFIGURED ? firebase.database() : null;
 
 /* ================= data (unchanged game content) ================= */
 
-const OL_X = [220,270,320,370,420];
+const OL_X = [266, 293, 320, 347, 374]; // realistic-proportion OL splits (tightened from the old ~9.5yd-per-gap spacing)
 
 const formations = {
   iform: { name:"I-Formation", note:"Two backs stacked behind center, tight end attached right \u2014 a power running look.",
-    skill:[{label:'QB',x:320,y:22},{label:'FB',x:320,y:42},{label:'HB',x:320,y:62},{label:'TE',x:450,y:0},{label:'WR',x:60,y:0},{label:'WR',x:580,y:0}] },
+    skill:[{label:'QB',x:320,y:22},{label:'FB',x:320,y:42},{label:'HB',x:320,y:62},{label:'TE',x:404,y:0},{label:'WR',x:175,y:0},{label:'WR',x:465,y:0}] },
   shotgun: { name:"Shotgun Spread", note:"Quarterback set back off the snap, three receivers spread wide \u2014 built to throw.",
-    skill:[{label:'QB',x:320,y:52},{label:'RB',x:270,y:48},{label:'WR',x:58,y:0},{label:'WR',x:150,y:4},{label:'WR',x:582,y:0},{label:'TE',x:450,y:0}] },
+    skill:[{label:'QB',x:320,y:52},{label:'RB',x:293,y:48},{label:'WR',x:175,y:0},{label:'WR',x:230,y:4},{label:'WR',x:465,y:0},{label:'TE',x:404,y:0}] },
   singleback: { name:"Singleback Trips", note:"One back, three receivers bunched right \u2014 balanced, leaning toward pass.",
-    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'WR',x:60,y:0},{label:'TE',x:400,y:0},{label:'WR',x:480,y:4},{label:'WR',x:580,y:0}] },
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'WR',x:175,y:0},{label:'TE',x:404,y:0},{label:'WR',x:445,y:4},{label:'WR',x:495,y:0}] },
   pistol: { name:"Pistol", note:"Quarterback a few yards back, running back stacked right behind him \u2014 keeps run and pass equally live.",
-    skill:[{label:'QB',x:320,y:34},{label:'RB',x:320,y:56},{label:'WR',x:60,y:0},{label:'WR',x:150,y:4},{label:'WR',x:580,y:0},{label:'TE',x:450,y:0}] },
+    skill:[{label:'QB',x:320,y:34},{label:'RB',x:320,y:56},{label:'WR',x:175,y:0},{label:'WR',x:230,y:4},{label:'WR',x:465,y:0},{label:'TE',x:404,y:0}] },
   wildcat: { name:"Wildcat", note:"Direct snap to the running back \u2014 the quarterback flexes out wide as a decoy.",
-    skill:[{label:'RB',x:320,y:44},{label:'FB',x:270,y:20},{label:'WR',x:60,y:0},{label:'WR',x:150,y:4},{label:'TE',x:450,y:0},{label:'WR',x:580,y:0}] },
+    skill:[{label:'RB',x:320,y:44},{label:'FB',x:293,y:20},{label:'WR',x:175,y:0},{label:'WR',x:230,y:4},{label:'TE',x:404,y:0},{label:'WR',x:465,y:0}] },
   empty: { name:"Empty (5-Wide)", note:"No running back in sight \u2014 five receivers spread the field, everything is a pass.",
-    skill:[{label:'QB',x:320,y:52},{label:'WR',x:58,y:0},{label:'WR',x:150,y:4},{label:'WR',x:480,y:4},{label:'WR',x:582,y:0},{label:'TE',x:450,y:0}] },
+    skill:[{label:'QB',x:320,y:52},{label:'WR',x:175,y:0},{label:'WR',x:230,y:4},{label:'WR',x:445,y:4},{label:'WR',x:495,y:0},{label:'TE',x:404,y:0}] },
   goalline: { name:"Goal Line", note:"Two tight ends and two backs crowd the formation \u2014 built to smash forward for a yard, not spread the field.",
-    skill:[{label:'QB',x:320,y:22},{label:'FB',x:320,y:44},{label:'HB',x:320,y:66},{label:'TE',x:450,y:0},{label:'TE',x:190,y:0},{label:'WR',x:580,y:0}] },
+    skill:[{label:'QB',x:320,y:22},{label:'FB',x:320,y:44},{label:'HB',x:320,y:66},{label:'TE',x:404,y:0},{label:'TE',x:236,y:0},{label:'WR',x:465,y:0}] },
   proset: { name:"Pro Set", note:"Two backs split side by side instead of stacked \u2014 balanced protection, can run or throw from the same look.",
-    skill:[{label:'QB',x:320,y:22},{label:'FB',x:270,y:36},{label:'HB',x:370,y:36},{label:'TE',x:450,y:0},{label:'WR',x:60,y:0},{label:'WR',x:580,y:0}] },
+    skill:[{label:'QB',x:320,y:22},{label:'FB',x:293,y:36},{label:'HB',x:347,y:36},{label:'TE',x:404,y:0},{label:'WR',x:175,y:0},{label:'WR',x:465,y:0}] },
   ace: { name:"Ace", note:"One back, a tight end on each side \u2014 a balanced, two-way look that can run either direction.",
-    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:450,y:0},{label:'TE',x:190,y:0},{label:'WR',x:60,y:0},{label:'WR',x:580,y:0}] },
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:404,y:0},{label:'TE',x:236,y:0},{label:'WR',x:175,y:0},{label:'WR',x:465,y:0}] },
   bunch: { name:"Bunch Trips", note:"Three receivers bunched tight to one side, a lone receiver isolated on the backside \u2014 creates natural picks and confusion in coverage.",
-    skill:[{label:'QB',x:320,y:52},{label:'RB',x:270,y:48},{label:'WR',x:465,y:6},{label:'WR',x:500,y:14},{label:'WR',x:480,y:-12},{label:'WR',x:60,y:0}] },
+    skill:[{label:'QB',x:320,y:52},{label:'RB',x:293,y:48},{label:'WR',x:445,y:6},{label:'WR',x:480,y:14},{label:'WR',x:465,y:-8},{label:'WR',x:175,y:0}] },
   wishbone: { name:"Wishbone", note:"Three backs stacked in a wishbone shape behind center \u2014 an old-school option look built almost entirely to run.",
-    skill:[{label:'QB',x:320,y:20},{label:'FB',x:320,y:42},{label:'HB',x:270,y:62},{label:'HB',x:370,y:62},{label:'TE',x:450,y:0},{label:'WR',x:60,y:0}] },
+    skill:[{label:'QB',x:320,y:20},{label:'FB',x:320,y:42},{label:'HB',x:293,y:62},{label:'HB',x:347,y:62},{label:'TE',x:404,y:0},{label:'WR',x:175,y:0}] },
   shotguntwins: { name:"Shotgun Twins", note:"Two receivers stacked on each side, no tight end \u2014 four vertical or crossing options with a back to check down to.",
-    skill:[{label:'QB',x:320,y:50},{label:'RB',x:270,y:46},{label:'WR',x:58,y:0},{label:'WR',x:150,y:4},{label:'WR',x:510,y:4},{label:'WR',x:582,y:0}] },
+    skill:[{label:'QB',x:320,y:50},{label:'RB',x:293,y:46},{label:'WR',x:175,y:0},{label:'WR',x:230,y:4},{label:'WR',x:410,y:4},{label:'WR',x:465,y:0}] },
   trey: { name:"Trey", note:"Three tight ends stacked to one side \u2014 overloads the formation to create a numbers advantage in the run game.",
-    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:400,y:0},{label:'TE',x:450,y:0},{label:'TE',x:480,y:4},{label:'WR',x:60,y:0}] }
+    skill:[{label:'QB',x:320,y:22},{label:'RB',x:320,y:46},{label:'TE',x:404,y:0},{label:'TE',x:440,y:4},{label:'TE',x:480,y:-4},{label:'WR',x:175,y:0}] }
 };
 
 const fronts = {
   base43: { name:"4-3 Base", note:"Four down linemen, three linebackers \u2014 even numbers, honest against everything.",
-    players:[{x:265,y:-10,role:'DL'},{x:300,y:-10,role:'DL'},{x:340,y:-10,role:'DL'},{x:375,y:-10,role:'DL'},{x:250,y:-42,role:'LB'},{x:320,y:-42,role:'LB'},{x:390,y:-42,role:'LB'},{x:60,y:-28,role:'CB'},{x:580,y:-28,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+    players:[{x:265,y:-10,role:'DL'},{x:300,y:-10,role:'DL'},{x:340,y:-10,role:'DL'},{x:375,y:-10,role:'DL'},{x:250,y:-42,role:'LB'},{x:320,y:-42,role:'LB'},{x:390,y:-42,role:'LB'},{x:160,y:-28,role:'CB'},{x:480,y:-28,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
   nickel: { name:"Nickel (4-2-5)", note:"An extra defensive back swaps in for a linebacker \u2014 built to match three receivers.",
-    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-42,role:'LB'},{x:350,y:-42,role:'LB'},{x:60,y:-24,role:'CB'},{x:320,y:-24,role:'CB'},{x:580,y:-24,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-42,role:'LB'},{x:350,y:-42,role:'LB'},{x:160,y:-24,role:'CB'},{x:320,y:-24,role:'CB'},{x:480,y:-24,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
   bearbox: { name:"Stacked Box", note:"Eight defenders crowd the line \u2014 committed to stopping the run first, and paying for it if they guessed wrong.",
-    players:[{x:240,y:-8,role:'DL'},{x:270,y:-8,role:'DL'},{x:300,y:-8,role:'DL'},{x:340,y:-8,role:'DL'},{x:370,y:-8,role:'DL'},{x:400,y:-8,role:'DL'},{x:220,y:-34,role:'LB'},{x:420,y:-34,role:'LB'},{x:60,y:-20,role:'CB'},{x:580,y:-20,role:'CB'},{x:320,y:-115,role:'S'}] },
+    players:[{x:240,y:-8,role:'DL'},{x:270,y:-8,role:'DL'},{x:300,y:-8,role:'DL'},{x:340,y:-8,role:'DL'},{x:370,y:-8,role:'DL'},{x:400,y:-8,role:'DL'},{x:220,y:-34,role:'LB'},{x:420,y:-34,role:'LB'},{x:160,y:-20,role:'CB'},{x:480,y:-20,role:'CB'},{x:320,y:-115,role:'S'}] },
   dime: { name:"Dime", note:"Six defensive backs on the field \u2014 an extra corner replaces a linebacker to blanket a pass-heavy set.",
-    players:[{x:275,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:365,y:-10,role:'DL'},{x:320,y:-40,role:'LB'},{x:60,y:-24,role:'CB'},{x:220,y:-24,role:'CB'},{x:420,y:-24,role:'CB'},{x:580,y:-24,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+    players:[{x:275,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:365,y:-10,role:'DL'},{x:320,y:-40,role:'LB'},{x:160,y:-24,role:'CB'},{x:220,y:-24,role:'CB'},{x:420,y:-24,role:'CB'},{x:480,y:-24,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
   threefour: { name:"3-4 Base", note:"Three down linemen, four linebackers \u2014 more disguise up front, relies on the backers to fill the gaps.",
-    players:[{x:280,y:-12,role:'DL'},{x:320,y:-12,role:'DL'},{x:360,y:-12,role:'DL'},{x:230,y:-40,role:'LB'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:410,y:-40,role:'LB'},{x:60,y:-28,role:'CB'},{x:580,y:-28,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+    players:[{x:280,y:-12,role:'DL'},{x:320,y:-12,role:'DL'},{x:360,y:-12,role:'DL'},{x:230,y:-40,role:'LB'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:410,y:-40,role:'LB'},{x:160,y:-28,role:'CB'},{x:480,y:-28,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
   quarters: { name:"Quarters", note:"Two safeties sit deep and split the field into quarters \u2014 no big plays allowed, but the short game is there for the taking.",
-    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:220,y:-105,role:'S'},{x:420,y:-105,role:'S'}] },
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:160,y:-26,role:'CB'},{x:480,y:-26,role:'CB'},{x:220,y:-105,role:'S'},{x:420,y:-105,role:'S'}] },
   bignickel: { name:"Big Nickel", note:"A third safety comes on for a linebacker \u2014 keeps speed on the field against bigger receiving personnel.",
-    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:240,y:-90,role:'S'},{x:320,y:-90,role:'S'},{x:400,y:-90,role:'S'}] },
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:160,y:-26,role:'CB'},{x:480,y:-26,role:'CB'},{x:240,y:-90,role:'S'},{x:320,y:-90,role:'S'},{x:400,y:-90,role:'S'}] },
   prevent: { name:"Prevent", note:"Almost everyone drops deep \u2014 concedes anything short to guarantee nothing gets behind them.",
-    players:[{x:300,y:-8,role:'DL'},{x:340,y:-8,role:'DL'},{x:260,y:-35,role:'LB'},{x:60,y:-30,role:'CB'},{x:380,y:-30,role:'CB'},{x:580,y:-30,role:'CB'},{x:160,y:-115,role:'S'},{x:240,y:-115,role:'S'},{x:320,y:-115,role:'S'},{x:400,y:-115,role:'S'},{x:480,y:-115,role:'S'}] },
+    players:[{x:300,y:-8,role:'DL'},{x:340,y:-8,role:'DL'},{x:260,y:-35,role:'LB'},{x:160,y:-30,role:'CB'},{x:380,y:-30,role:'CB'},{x:480,y:-30,role:'CB'},{x:160,y:-115,role:'S'},{x:240,y:-115,role:'S'},{x:320,y:-115,role:'S'},{x:400,y:-115,role:'S'},{x:480,y:-115,role:'S'}] },
   fortysix: { name:"46 Overload", note:"Five men crash the line and a safety cheats down into the box \u2014 maximum numbers against the run, thin on the back end.",
-    players:[{x:250,y:-10,role:'DL'},{x:285,y:-10,role:'DL'},{x:320,y:-10,role:'DL'},{x:355,y:-10,role:'DL'},{x:390,y:-10,role:'DL'},{x:300,y:-42,role:'LB'},{x:360,y:-42,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:340,y:-58,role:'S'},{x:400,y:-100,role:'S'}] },
+    players:[{x:250,y:-10,role:'DL'},{x:285,y:-10,role:'DL'},{x:320,y:-10,role:'DL'},{x:355,y:-10,role:'DL'},{x:390,y:-10,role:'DL'},{x:300,y:-42,role:'LB'},{x:360,y:-42,role:'LB'},{x:160,y:-26,role:'CB'},{x:480,y:-26,role:'CB'},{x:340,y:-58,role:'S'},{x:400,y:-100,role:'S'}] },
   cover2: { name:"Cover 2", note:"Corners jam receivers right at the line, two safeties sit deep and split the field in half \u2014 nothing gets behind them, but the middle can be had underneath.",
-    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:60,y:-14,role:'CB'},{x:580,y:-14,role:'CB'},{x:240,y:-105,role:'S'},{x:400,y:-105,role:'S'}] },
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:160,y:-14,role:'CB'},{x:480,y:-14,role:'CB'},{x:240,y:-105,role:'S'},{x:400,y:-105,role:'S'}] },
   cover3: { name:"Cover 3", note:"Three defenders split the deep field into thirds while two safeties rotate underneath \u2014 disguises where the double coverage is.",
-    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:320,y:-95,role:'CB'},{x:240,y:-90,role:'S'},{x:400,y:-90,role:'S'}] },
+    players:[{x:270,y:-10,role:'DL'},{x:305,y:-10,role:'DL'},{x:335,y:-10,role:'DL'},{x:370,y:-10,role:'DL'},{x:290,y:-40,role:'LB'},{x:350,y:-40,role:'LB'},{x:160,y:-26,role:'CB'},{x:480,y:-26,role:'CB'},{x:320,y:-95,role:'CB'},{x:240,y:-90,role:'S'},{x:400,y:-90,role:'S'}] },
   oddstack: { name:"Odd Stack (3-3-5)", note:"Three down linemen, three linebackers, three safeties \u2014 a hybrid front built for speed over size.",
-    players:[{x:280,y:-12,role:'DL'},{x:320,y:-12,role:'DL'},{x:360,y:-12,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:240,y:-92,role:'S'},{x:320,y:-92,role:'S'},{x:400,y:-92,role:'S'}] },
+    players:[{x:280,y:-12,role:'DL'},{x:320,y:-12,role:'DL'},{x:360,y:-12,role:'DL'},{x:250,y:-40,role:'LB'},{x:320,y:-40,role:'LB'},{x:390,y:-40,role:'LB'},{x:160,y:-26,role:'CB'},{x:480,y:-26,role:'CB'},{x:240,y:-92,role:'S'},{x:320,y:-92,role:'S'},{x:400,y:-92,role:'S'}] },
   disguise: { name:"Amoeba Disguise", note:"Only two hands in the dirt \u2014 five linebackers stand up across the front, disguising who's actually coming.",
-    players:[{x:300,y:-14,role:'DL'},{x:340,y:-14,role:'DL'},{x:230,y:-32,role:'LB'},{x:275,y:-32,role:'LB'},{x:320,y:-32,role:'LB'},{x:365,y:-32,role:'LB'},{x:410,y:-32,role:'LB'},{x:60,y:-26,role:'CB'},{x:580,y:-26,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
+    players:[{x:300,y:-14,role:'DL'},{x:340,y:-14,role:'DL'},{x:230,y:-32,role:'LB'},{x:275,y:-32,role:'LB'},{x:320,y:-32,role:'LB'},{x:365,y:-32,role:'LB'},{x:410,y:-32,role:'LB'},{x:160,y:-26,role:'CB'},{x:480,y:-26,role:'CB'},{x:280,y:-95,role:'S'},{x:360,y:-95,role:'S'}] },
   goallineswarm: { name:"Goal Line Swarm", note:"Seven defenders shoulder to shoulder at the line, a single corner locked on the lone receiver \u2014 built for a one-yard stop, nothing else.",
-    players:[{x:220,y:-6,role:'DL'},{x:255,y:-6,role:'DL'},{x:285,y:-6,role:'DL'},{x:320,y:-6,role:'DL'},{x:355,y:-6,role:'DL'},{x:390,y:-6,role:'DL'},{x:420,y:-6,role:'DL'},{x:260,y:-26,role:'LB'},{x:380,y:-26,role:'LB'},{x:580,y:-16,role:'CB'},{x:320,y:-90,role:'S'}] }
+    players:[{x:220,y:-6,role:'DL'},{x:255,y:-6,role:'DL'},{x:285,y:-6,role:'DL'},{x:320,y:-6,role:'DL'},{x:355,y:-6,role:'DL'},{x:390,y:-6,role:'DL'},{x:420,y:-6,role:'DL'},{x:260,y:-26,role:'LB'},{x:380,y:-26,role:'LB'},{x:480,y:-16,role:'CB'},{x:320,y:-90,role:'S'}] }
 };
 
 const plays = {
@@ -1506,7 +1506,7 @@ function clampToLOS(y){ return Math.max(0, y); } // y is an offset from the line
 
 function resolveMotionCollision(pos, allPoints, selfIdx){
   let p = { x:pos.x, y:pos.y };
-  for(let attempt=0; attempt<8; attempt++){
+  for(let attempt=0; attempt<20; attempt++){
     let collision = null;
     for(let i=0; i<allPoints.length; i++){
       if(i===selfIdx) continue;
@@ -1521,7 +1521,7 @@ function resolveMotionCollision(pos, allPoints, selfIdx){
       // the direction-away-from-collision vector is undefined here, so just stagger the depth instead
       p = { x: p.x, y: clampToLOS(p.y + 18) };
     } else {
-      p = { x: p.x + (dx/len)*16, y: clampToLOS(p.y + (dy/len)*16) };
+      p = { x: p.x + (dx/len)*20, y: clampToLOS(p.y + (dy/len)*20) };
     }
   }
   return p;
