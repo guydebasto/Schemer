@@ -1185,17 +1185,37 @@ function renderLobby(){
     const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
     c.innerHTML = `
       <h2 style="text-align:center;">Feedback</h2>
-      <p class="sub">Found a bug, or got an idea? Write it below \u2014 it'll open in your email app addressed straight to the person who built this.</p>
+      <p class="sub">Found a bug, or got an idea? Write it below and send it straight over \u2014 no email needed.</p>
       <textarea class="ed-input" id="feedbackText" rows="6" style="width:100%;resize:vertical;margin-bottom:12px;" placeholder="What happened, or what would you like to see?"></textarea>
+      <div id="feedbackStatus" class="sub" style="min-height:18px;"></div>
       <div class="lobby-actions">
         <button id="feedbackSend">Send feedback</button>
       </div>`;
     lobby.appendChild(c);
-    document.getElementById('feedbackSend').onclick = ()=>{
-      const body = document.getElementById('feedbackText').value.trim();
-      if(!body){ return; }
-      const subject = encodeURIComponent('Schemer feedback');
-      window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${encodeURIComponent(body)}`;
+    document.getElementById('feedbackSend').onclick = async ()=>{
+      const textEl = document.getElementById('feedbackText');
+      const statusEl = document.getElementById('feedbackStatus');
+      const body = textEl.value.trim();
+      if(!body) return;
+      const btn = document.getElementById('feedbackSend');
+      if(FIREBASE_CONFIGURED){
+        btn.disabled = true; statusEl.textContent = 'Sending\u2026';
+        try{
+          await db.ref('feedback/'+genId()).set({
+            message: body,
+            submittedAt: firebase.database.ServerValue.TIMESTAMP,
+            page: 'schemer',
+          });
+          textEl.value = '';
+          statusEl.textContent = 'Sent \u2014 thanks!';
+        }catch(e){
+          statusEl.textContent = "Couldn't send that \u2014 try again in a moment.";
+        }
+        btn.disabled = false;
+      } else {
+        const subject = encodeURIComponent('Schemer feedback');
+        window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${encodeURIComponent(body)}`;
+      }
     };
     return;
   }

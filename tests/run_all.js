@@ -313,6 +313,30 @@ console.log('\n=== 13. Online multiplayer: both clients stay in sync (the exact 
   assert(bPanel.includes('Hidden from the offence'), 'the joining player (B) actually sees their DEF_CALL screen, not stuck waiting');
 }
 
+console.log('\n=== 14. Feedback submits directly to Firebase, no email required ===');
+{
+  const writes = [];
+  const dom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://example.com/' });
+  const w = dom.window;
+  w.firebase = { initializeApp(){}, database: () => ({ ref: (path) => ({
+    set: async (val) => { writes.push({path, val}); },
+    once: async()=>({val:()=>null}), on(){}, off(){},
+  }) }) };
+  w.firebase.database.ServerValue = { increment: n => ({__inc:n}), TIMESTAMP: '__SERVER_TIMESTAMP__' };
+  w.prompt = () => 'x'; w.alert = () => {};
+  w.eval(appScript);
+  await new Promise(r=>setTimeout(r,100)); // let boot() settle before interacting, same as a real user would
+  w.goToScreen('feedback');
+  w.document.getElementById('feedbackText').value = 'Test feedback message';
+  w.document.getElementById('feedbackSend').click();
+  await new Promise(r=>setTimeout(r,80));
+  assert(writes.length === 1, 'feedback submission writes to Firebase instead of opening an email client');
+  assert(writes[0] && writes[0].path && writes[0].path.startsWith('feedback/'), 'feedback is written under the feedback/ path');
+  assert(writes[0] && writes[0].val && writes[0].val.message === 'Test feedback message', 'the submitted message is captured correctly');
+  const status = w.document.getElementById('feedbackStatus');
+  assert(!!status && status.textContent.includes('Sent'), 'the user sees a confirmation after sending');
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed > 0 ? 1 : 0);
 
