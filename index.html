@@ -1458,7 +1458,6 @@ function drawPlayResult(dyn, ly, animate){
 /* ---- pre-snap motion ---- */
 
 const MOTION_TYPES = { jet:'Jet', orbit:'Orbit', shift:'Shift', return:'Return' };
-let pendingMotion = null; // ephemeral choice while calling the current play
 
 function motionManIndex(g){
   const pts = offensePoints(g.offKey, g.offCustom);
@@ -1527,38 +1526,47 @@ function previewMotionAnimation(motionType){
   requestAnimationFrame(frame);
 }
 
-function motionControlsBox(){
-  const wrap = document.createElement('div'); wrap.className = 'coach-tip';
-  const rowId = 'motionRow_' + Math.random().toString(36).slice(2,8);
-  wrap.innerHTML = `<span class="coach-label">Motion (optional)</span>
-    <div class="cat-btn-row" id="${rowId}">
-      <button type="button" class="cat-btn${pendingMotion===null?' active':''}" data-motion="">No Motion</button>
-      ${Object.keys(MOTION_TYPES).map(k=>`<button type="button" class="cat-btn${pendingMotion===k?' active':''}" data-motion="${k}">${MOTION_TYPES[k]}</button>`).join('')}
-    </div>`;
-  requestAnimationFrame(()=>{
-    const row = wrap.querySelector('#'+rowId);
-    if(!row) return;
-    row.querySelectorAll('button').forEach(b=>{
-      b.onclick = ()=>{
-        pendingMotion = b.dataset.motion || null;
-        row.querySelectorAll('button').forEach(x=> x.classList.toggle('active', x===b));
-        if(pendingMotion) previewMotionAnimation(pendingMotion);
-      };
-    });
-  });
-  return wrap;
-}
-
-function applyMotionToPlay(g){
-  g.motionType = pendingMotion;
-  if(pendingMotion){
+function commitMotionChoice(g, motionType){
+  g.motionType = motionType || null;
+  if(g.motionType){
     g.motionPlayerIndex = motionManIndex(g);
-    g.motionFinalPos = motionFinalPosFor(g, pendingMotion, g.motionPlayerIndex);
+    g.motionFinalPos = motionFinalPosFor(g, g.motionType, g.motionPlayerIndex);
   } else {
     g.motionPlayerIndex = null;
     g.motionFinalPos = null;
   }
-  pendingMotion = null;
+}
+
+function motionChoiceScreen(onChoose){
+  const wrap = document.createElement('div');
+  const p = document.createElement('div'); p.className = 'prompt';
+  p.innerHTML = `<em>Pre-snap motion.</em> This is visible to the defence \u2014 they'll get a chance to adjust their front before the play is called.`;
+  wrap.appendChild(p);
+  const grid = document.createElement('div'); grid.className = 'choice-grid';
+  const opts = [{key:'', label:'No Motion', note:'Stay in your set formation.'}]
+    .concat(Object.keys(MOTION_TYPES).map(k=>({key:k, label:MOTION_TYPES[k], note:''})));
+  opts.forEach(o=>{
+    const btn = document.createElement('button'); btn.className = 'choice-btn';
+    btn.innerHTML = `<span class="name">${o.label}</span><span class="desc">${o.note}</span>`;
+    btn.addEventListener('mouseenter', ()=>{ if(o.key) previewMotionAnimation(o.key); });
+    btn.onclick = ()=> onChoose(o.key || null);
+    grid.appendChild(btn);
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function defAdjustScreen(onKeep, onChangeGrid){
+  const wrap = document.createElement('div');
+  const p = document.createElement('div'); p.className = 'prompt';
+  p.innerHTML = `<em>The offence went in motion.</em> Adjust your front if you want to, or stay as you are.`;
+  wrap.appendChild(p);
+  const keepBtn = document.createElement('button'); keepBtn.className = 'create-new-btn';
+  keepBtn.textContent = 'Keep current front';
+  keepBtn.onclick = onKeep;
+  wrap.appendChild(keepBtn);
+  wrap.appendChild(onChangeGrid);
+  return wrap;
 }
 
 function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
@@ -1723,19 +1731,37 @@ function buildPanel(){
       panel.appendChild(choiceGrid(
         "Choose a front to match the offence's personnel.", true,
         groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
-          k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
-          item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; }), false),
+          k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_MOTION'; }),
+          item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_MOTION'; }), false),
         ()=> openEditor('defense','formation'), 'Create your own front',
       null, null, 'defense'
       ));
     } else {
       panel.appendChild(waitingBox("Defence is matching your formation\u2026"));
     }
+  } else if(phase === 'OFF_MOTION'){
+    if(myRole==='offense'){
+      panel.appendChild(motionChoiceScreen(motionType=> writeGame(g=>{ commitMotionChoice(g, motionType); g.phase='DEF_ADJUST'; })));
+    } else {
+      panel.appendChild(waitingBox("Offence is deciding on motion\u2026"));
+    }
+  } else if(phase === 'DEF_ADJUST'){
+    if(myRole==='defense'){
+      const changeGrid = choiceGrid(
+        "Or pick a different front.", true,
+        groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
+          k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
+          item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; }), false),
+        null, null
+      );
+      panel.appendChild(defAdjustScreen(()=> writeGame(g=>{ g.phase='OFF_PLAY'; }), changeGrid));
+    } else {
+      panel.appendChild(waitingBox("Defence is reacting to the motion\u2026"));
+    }
   } else if(phase === 'OFF_PLAY'){
     if(myRole==='offense'){
-      const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; applyMotionToPlay(g); g.phase='DEF_CALL'; });
-      const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; applyMotionToPlay(g); g.phase='DEF_CALL'; });
-      panel.appendChild(motionControlsBox());
+      const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
+      const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
       panel.appendChild(choiceGrid(
         "Hidden from the defence \u2014 pick your play.", false,
         groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
@@ -1787,11 +1813,24 @@ function buildLocalPanel(phase){
     panel.appendChild(choiceGrid(
       "Defence: choose a front to match the offence's personnel.", true,
       groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
-        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='HANDOFF_TO_OFF'; }),
-        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='HANDOFF_TO_OFF'; }), false),
+        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_MOTION'; }),
+        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_MOTION'; }), false),
       ()=> openEditor('defense','formation'), 'Create your own front',
     null, null, 'defense'
     ));
+
+  } else if(phase === 'OFF_MOTION'){
+    panel.appendChild(motionChoiceScreen(motionType=> writeGame(g=>{ commitMotionChoice(g, motionType); g.phase='DEF_ADJUST'; })));
+
+  } else if(phase === 'DEF_ADJUST'){
+    const changeGrid = choiceGrid(
+      "Or pick a different front.", true,
+      groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
+        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='HANDOFF_TO_OFF'; }),
+        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='HANDOFF_TO_OFF'; }), false),
+      null, null
+    );
+    panel.appendChild(defAdjustScreen(()=> writeGame(g=>{ g.phase='HANDOFF_TO_OFF'; }), changeGrid));
 
   } else if(phase === 'HANDOFF_TO_OFF'){
     panel.appendChild(handoffBox("Pass the device to the offence.", "Reveal play options", ()=>{
@@ -1799,9 +1838,8 @@ function buildLocalPanel(phase){
     }));
 
   } else if(phase === 'OFF_PLAY'){
-    const onPickOff = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; applyMotionToPlay(g); g.phase='HANDOFF_TO_DEF'; });
-    const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; applyMotionToPlay(g); g.phase='HANDOFF_TO_DEF'; });
-    panel.appendChild(motionControlsBox());
+    const onPickOff = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='HANDOFF_TO_DEF'; });
+    const onPickOffCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='HANDOFF_TO_DEF'; });
     panel.appendChild(choiceGrid(
       "Hidden from the defence \u2014 pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPickOff, onPickOffCustom),
@@ -1832,7 +1870,7 @@ function buildLocalPanel(phase){
 }
 
 function buildAIPanel(phase){
-  const isOffPhase = (phase==='OFF_FORMATION' || phase==='OFF_PLAY');
+  const isOffPhase = (phase==='OFF_FORMATION' || phase==='OFF_PLAY' || phase==='OFF_MOTION');
   const controllingSide = phase==='RESULT' ? null : (isOffPhase ? 'offense' : 'defense');
   const isHumanTurn = controllingSide === myRole;
 
@@ -1862,16 +1900,28 @@ function buildAIPanel(phase){
     panel.appendChild(choiceGrid(
       "Choose a front to match the offence's personnel.", true,
       groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
-        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
-        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; }), false),
+        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_MOTION'; }),
+        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_MOTION'; }), false),
       ()=> openEditor('defense','formation'), 'Create your own front',
     null, null, 'defense'
     ));
 
+  } else if(phase === 'OFF_MOTION'){
+    panel.appendChild(motionChoiceScreen(motionType=> writeGame(g=>{ commitMotionChoice(g, motionType); g.phase='DEF_ADJUST'; })));
+
+  } else if(phase === 'DEF_ADJUST'){
+    const changeGrid = choiceGrid(
+      "Or pick a different front.", true,
+      groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
+        k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
+        item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; }), false),
+      null, null
+    );
+    panel.appendChild(defAdjustScreen(()=> writeGame(g=>{ g.phase='OFF_PLAY'; }), changeGrid));
+
   } else if(phase === 'OFF_PLAY'){
-    const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; applyMotionToPlay(g); g.phase='DEF_CALL'; });
-    const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; applyMotionToPlay(g); g.phase='DEF_CALL'; });
-    panel.appendChild(motionControlsBox());
+    const onPick = k=>writeGame(g=>{ g.offPlayKey=k; g.offPlayCustom=null; g.phase='DEF_CALL'; });
+    const onPickCustom = item=>writeGame(g=>{ g.offPlayKey=CUSTOM; g.offPlayCustom=item; g.phase='DEF_CALL'; });
     panel.appendChild(choiceGrid(
       "Pick your play.", false,
       groupsByCategory(plays, customOffPlays, PLAY_CATEGORIES, onPick, onPickCustom),
@@ -1899,7 +1949,8 @@ function buildAIPanel(phase){
 function aiMaybeAct(){
   if(mode !== 'ai' || !game || game.phase === 'RESULT') return;
   const phase = game.phase;
-  const side = (phase==='OFF_FORMATION'||phase==='OFF_PLAY') ? 'offense' : (phase==='DEF_FRONT'||phase==='DEF_CALL') ? 'defense' : null;
+  const side = (phase==='OFF_FORMATION'||phase==='OFF_PLAY'||phase==='OFF_MOTION') ? 'offense'
+    : (phase==='DEF_FRONT'||phase==='DEF_CALL'||phase==='DEF_ADJUST') ? 'defense' : null;
   if(side !== game.aiSide) return;
   if(aiPending) return;
   aiPending = true;
@@ -1929,19 +1980,22 @@ function aiMaybeAct(){
       writeGame(g=>{
         const pick = aiPickFront();
         g.defFrontKey = pick.key; g.defFrontCustom = null;
-        g.phase='OFF_PLAY';
+        g.phase='OFF_MOTION';
       });
+    } else if(phase==='OFF_MOTION'){
+      writeGame(g=>{
+        // scout what it's likely to call, and signal jet motion if that leans sweep/reverse
+        const preview = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle);
+        const wantsJet = !preview.isCustom && (preview.key==='sweep' || preview.key==='reverse');
+        commitMotionChoice(g, wantsJet ? 'jet' : null);
+        g.phase='DEF_ADJUST';
+      });
+    } else if(phase==='DEF_ADJUST'){
+      writeGame(g=>{ g.phase='OFF_PLAY'; }); // AI keeps its front; nothing mechanical to gain from changing it
     } else if(phase==='OFF_PLAY'){
       writeGame(g=>{
         const pick = aiPickPlay(g.down, g.distance, g.ballOn, g.aiDifficulty, g.aiOffStyle);
         if(pick.isCustom){ g.offPlayKey=CUSTOM; g.offPlayCustom=pick.item; } else { g.offPlayKey=pick.key; g.offPlayCustom=null; }
-        if(!pick.isCustom && (pick.key==='sweep' || pick.key==='reverse')){
-          g.motionType = 'jet';
-          g.motionPlayerIndex = motionManIndex(g);
-          g.motionFinalPos = motionFinalPosFor(g, 'jet', g.motionPlayerIndex);
-        } else {
-          g.motionType = null; g.motionPlayerIndex = null; g.motionFinalPos = null;
-        }
         g.phase='DEF_CALL';
       });
     } else if(phase==='DEF_CALL'){
@@ -2129,7 +2183,6 @@ function resultBox(){
   const btn = document.createElement('button'); btn.className='primary-btn'; btn.style.marginTop='10px';
   btn.textContent = r.driveOver ? 'Start next drive' : 'Next play';
   btn.onclick = ()=>{
-    pendingMotion = null;
     writeGame(g=>{
       g.offKey=null; g.defFrontKey=null; g.offPlayKey=null; g.defCallKey=null; g.lastResult=null;
       g.offCustom=null; g.defFrontCustom=null; g.offPlayCustom=null; g.defCallCustom=null;
