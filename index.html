@@ -404,13 +404,13 @@ const CALL_CATEGORIES = { runD:'Run D', passD:'Pass D', blitz:'Blitz' };
 const outcomes = {
   insideRun: {
     runBlitz:    {yards:1,  text:"The blitzer shoots straight through the A-gap and meets him at the line.", role:'LB'},
-    contain:     {yards:3,  text:"The front holds its ground \u2014 a modest push for a few yards.", role:'DL'},
+    contain:     {yards:5,  text:"The front holds its ground \u2014 a modest push for a few yards.", role:'DL'},
     zoneDrop:    {yards:7,  text:"Nobody's home in the box \u2014 he's through to the second level clean.", role:'S'},
-    manPress:    {yards:4,  text:"Man coverage outside doesn't change much up front \u2014 the line still wins a modest push.", role:'LB'},
-    spyDraw:     {yards:2,  text:"The spy stays home and helps clog the middle \u2014 not much room to work with.", role:'LB'},
-    allOutBlitz: {yards:-2, text:"Everybody crashes at once \u2014 he's swallowed up before the hole even opens.", role:'DL'},
+    manPress:    {yards:6,  text:"Man coverage outside doesn't change much up front \u2014 the line still wins a modest push.", role:'LB'},
+    spyDraw:     {yards:3,  text:"The spy stays home and helps clog the middle \u2014 not much room to work with.", role:'LB'},
+    allOutBlitz: {yards:-1, text:"Everybody crashes at once \u2014 he's swallowed up before the hole even opens.", role:'DL'},
     prevent:     {yards:9,  text:"Nearly everyone drops deep before the snap even settles \u2014 there's nobody left to fill the inside gaps.", role:'LB'},
-    stunt:       {yards:1,  text:"The stunting lineman loops right into the gap before the back can get through it.", role:'DL'},
+    stunt:       {yards:2,  text:"The stunting lineman loops right into the gap before the back can get through it.", role:'DL'},
   },
   sweep: {
     runBlitz:    {yards:9,  text:"The extra rusher came from the inside \u2014 the edge is wide open.", role:'CB'},
@@ -463,14 +463,14 @@ const outcomes = {
     stunt:       {yards:3,  text:"The stunt still occupies the middle just enough \u2014 the draw finds only a modest crease.", role:'LB'},
   },
   deepPass: {
-    runBlitz:    {yards:1,  text:"There's no run fake to hold the blockers \u2014 the blitz gets home before the deep route even develops.", role:'DL'},
-    contain:     {yards:11, text:"Contain is watching the run first \u2014 nobody rotates over to help deep and the shot connects.", role:'S'},
-    zoneDrop:    {yards:2,  text:"The deep zone is already sitting where the ball's going \u2014 well covered, incomplete.", role:'S'},
-    manPress:    {yards:14, text:"Man coverage on an island with no deep help \u2014 exactly the matchup a shot downfield wants.", role:'CB'},
-    spyDraw:     {yards:9,  text:"The spy's eyes are in the backfield, not on the route \u2014 the deep ball is in the air before anyone reacts.", role:'S'},
+    runBlitz:    {yards:2,  text:"There's no run fake to hold the blockers \u2014 the blitz gets home before the deep route even develops.", role:'DL'},
+    contain:     {yards:13, text:"Contain is watching the run first \u2014 nobody rotates over to help deep and the shot connects.", role:'S'},
+    zoneDrop:    {yards:3,  text:"The deep zone is already sitting where the ball's going \u2014 well covered, incomplete.", role:'S'},
+    manPress:    {yards:16, text:"Man coverage on an island with no deep help \u2014 exactly the matchup a shot downfield wants.", role:'CB'},
+    spyDraw:     {yards:10, text:"The spy's eyes are in the backfield, not on the route \u2014 the deep ball is in the air before anyone reacts.", role:'S'},
     allOutBlitz: {yards:20, text:"Everybody's rushing and nobody's deep \u2014 the protection holds just long enough and this one's gone.", role:'S', breakaway:true},
-    prevent:     {yards:1,  text:"This is exactly what prevent is built to stop \u2014 way too many bodies deep for anything to get behind them.", role:'S'},
-    stunt:       {yards:8,  text:"The stunt disrupts the pocket but doesn't add a rusher \u2014 there's still just enough time for the route to break open.", role:'CB'},
+    prevent:     {yards:2,  text:"This is exactly what prevent is built to stop \u2014 way too many bodies deep for anything to get behind them.", role:'S'},
+    stunt:       {yards:9,  text:"The stunt disrupts the pocket but doesn't add a rusher \u2014 there's still just enough time for the route to break open.", role:'CB'},
   },
   reverse: {
     runBlitz:    {yards:13, text:"The blitz flows hard one direction \u2014 the ball's already coming back the other way with numbers to the edge.", role:'CB'},
@@ -1558,7 +1558,9 @@ function motionManIndex(g){
   return idx;
 }
 
-function clampToLOS(y){ return Math.max(0, y); } // y is an offset from the line of scrimmage \u2014 can't go negative (past the line)
+function clampToLOS(y){ return Math.max(8, Math.min(70, y)); } // motion must stay clearly behind the line \u2014 never on/ahead of it, and never absurdly deep into the backfield
+
+function clampFieldX(x){ return Math.max(48, Math.min(592, x)); }
 
 function resolveMotionCollision(pos, allPoints, selfIdx){
   let p = { x:pos.x, y:pos.y };
@@ -1575,9 +1577,9 @@ function resolveMotionCollision(pos, allPoints, selfIdx){
     if(len < 0.5){
       // exactly coincident (common with jet motion into a symmetric formation) \u2014
       // the direction-away-from-collision vector is undefined here, so just stagger the depth instead
-      p = { x: p.x, y: clampToLOS(p.y + 18) };
+      p = { x: clampFieldX(p.x), y: clampToLOS(p.y + 14) };
     } else {
-      p = { x: p.x + (dx/len)*20, y: clampToLOS(p.y + (dy/len)*20) };
+      p = { x: clampFieldX(p.x + (dx/len)*14), y: clampToLOS(p.y + (dy/len)*14) };
     }
   }
   return p;
@@ -2909,7 +2911,9 @@ function renderEditorScreen(){
     <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <p class="ed-hint">${ed.type==='formation'
       ? 'Drag any player to reposition them \u2014 this becomes your custom ' + (isOff?'formation.':'front.') + (isOff ? ' Nobody can line up past the line of scrimmage, and at least 7 need to be on it (max 4 in the backfield).' : ' Defenders can\u2019t cross into the neutral zone either.')
-      : 'Drag from the ball to draw where it goes \u2014 that\u2019s what the ' + (isOff?'play':'call') + ' does. The backdrop players are just for reference.'}</p>
+      : (isOff
+          ? 'Drag from the ball to draw where it goes. You can also drag from any receiver or tight end in the backdrop to draw their route \u2014 works on any play, including pass plays.'
+          : 'Drag from the ball to draw where it goes \u2014 that\u2019s what the call does. The backdrop players are just for reference.')}</p>
     <div class="ed-actions">
       <button id="edFlipBtn" class="ghost">Flip</button>
       ${!isOff ? `<button id="edLabelsBtn" class="ghost${showPosLabels?' active-toggle':''}">Position labels</button>` : ''}
@@ -3087,6 +3091,11 @@ function edRenderCanvas(){
         svg.appendChild(g);
       }
       if(isOff && i>=5){
+        if(!ed.routes || !ed.routes[i]){
+          const ring = el('circle',{cx:p.x,cy:p.y,r:11,fill:'none',stroke:'var(--gold-dim)','stroke-width':1.5,'stroke-dasharray':'2,2'});
+          ring.style.pointerEvents = 'none';
+          svg.appendChild(ring);
+        }
         const hit = el('circle',{cx:p.x,cy:p.y,r:15,fill:'transparent'});
         hit.style.cursor='crosshair';
         hit.addEventListener('pointerdown', e=> edStartRouteDraw(e, i, svg, p));
