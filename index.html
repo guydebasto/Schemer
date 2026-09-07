@@ -36,6 +36,9 @@
   .app{max-width:720px;margin:0 auto;padding:18px 16px 40px;}
 
   .masthead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;gap:12px;}
+  /* Placeholder logo \u2014 swap the <svg class="logo-placeholder"> markup in the HTML for an <img> once you've got a real one */
+  .masthead-title{display:flex;align-items:center;gap:10px;}
+  .logo-placeholder{flex-shrink:0;}
   .masthead h1{font-size:22px;font-weight:700;margin:0;letter-spacing:0.2px;}
   .masthead .tag{font-size:12px;color:var(--chalk-dim);text-align:right;line-height:1.4;cursor:default;}
 
@@ -182,7 +185,12 @@
   .seg-toggle button{ background:transparent; color:var(--chalk-dim); border:none; padding:8px 12px; font-size:13px; font-weight:500; cursor:pointer; }
   .seg-toggle button.active{ background:var(--gold); color:#1a1509; font-weight:700; }
   .seg-toggle button.active.def{ background:var(--brick); color:var(--chalk); }
-  .ed-select, .ed-input{
+  .ed-select{
+    background:#fff; border:1px solid var(--board-line); color:#000;
+    padding:8px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px;
+  }
+  .ed-select option{ color:#000; background:#fff; }
+  .ed-input{
     background:transparent; border:1px solid var(--board-line); color:var(--chalk);
     padding:8px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px;
   }
@@ -244,7 +252,15 @@
 <div class="app">
 
   <div class="masthead">
-    <h1>Schemer</h1>
+    <div class="masthead-title">
+      <svg class="logo-placeholder" width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="32" height="32" rx="6" fill="var(--board)" stroke="var(--gold-dim)" stroke-width="1.5"/>
+        <circle cx="12" cy="17" r="6" fill="none" stroke="var(--gold)" stroke-width="2.2"/>
+        <line x1="19" y1="10" x2="27" y2="24" stroke="var(--brick)" stroke-width="2.2"/>
+        <line x1="19" y1="24" x2="27" y2="10" stroke="var(--brick)" stroke-width="2.2"/>
+      </svg>
+      <h1>Schemer</h1>
+    </div>
     <div class="tag" id="mastheadTag">a tactical trainer<br>play it out with a friend</div>
   </div>
 
@@ -722,10 +738,13 @@ const CUSTOM_STORE_KEYS = {
   defCall: 'schemer:custom:def-calls',
 };
 function lsGetJSON(key){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e){ return null; } }
-function lsSetJSON(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+function lsSetJSON(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+  catch(e){ return false; }
+}
 
 async function loadCustomList(key){ return lsGetJSON(key) || []; }
-async function saveCustomList(key, list){ lsSetJSON(key, list); }
+async function saveCustomList(key, list){ return lsSetJSON(key, list); }
 async function loadAllCustom(){
   customOffFormations = await loadCustomList(CUSTOM_STORE_KEYS.offForm);
   customDefFormations = await loadCustomList(CUSTOM_STORE_KEYS.defForm);
@@ -1261,6 +1280,9 @@ function computePositionLabels(players){
     if(lab === 'DE' && Math.abs(players[idx].x - 320) > narrowestCB) labels[idx] = 'OLB';
   });
 
+  // a manually typed-in label always wins over the auto-computed one
+  players.forEach((p,idx)=>{ if(p.customLabel) labels[idx] = p.customLabel; });
+
   return labels;
 }
 
@@ -1349,6 +1371,10 @@ function formatClock(sec){
 
 /* ================= main render ================= */
 
+let previewOverride = null; // { side:'offense'|'defense', key, custom } \u2014 hover-preview on the field
+function startFormationPreview(side, key, custom){ previewOverride = {side, key, custom}; render(); }
+function endFormationPreview(){ if(previewOverride){ previewOverride = null; render(); } }
+
 function render(){
   if(!game) return;
   const ly = losY(game.ballOn);
@@ -1360,8 +1386,13 @@ function render(){
     drawLineMarker(dyn, distY, 'var(--gold)', true);
   }
 
-  if(game.offKey) drawOffense(dyn, game.offKey, game.offCustom, ly, false);
-  if(game.defFrontKey) drawDefense(dyn, game.defFrontKey, game.defFrontCustom, ly, false);
+  if(previewOverride && previewOverride.side==='offense'){
+    drawOffense(dyn, previewOverride.key, previewOverride.custom, ly, false);
+  } else if(game.offKey) drawOffense(dyn, game.offKey, game.offCustom, ly, false);
+
+  if(previewOverride && previewOverride.side==='defense'){
+    drawDefense(dyn, previewOverride.key, previewOverride.custom, ly, false);
+  } else if(game.defFrontKey) drawDefense(dyn, game.defFrontKey, game.defFrontCustom, ly, false);
 
   let animateThisResult = false;
   if(game.lastResult && game.seq !== lastAnimatedSeq){
@@ -1473,7 +1504,8 @@ function buildPanel(){
         groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
           k=>writeGame(g=>{ g.offKey=k; g.offCustom=null; g.phase='DEF_FRONT'; }),
           item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
-        ()=> openEditor('offense','formation'), 'Create your own formation'
+        ()=> openEditor('offense','formation'), 'Create your own formation',
+      null, null, 'offense'
       ));
       if(kneelAvailable(game)) panel.appendChild(kneelButton());
       }
@@ -1487,7 +1519,8 @@ function buildPanel(){
         groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
           k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
           item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; })),
-        ()=> openEditor('defense','formation'), 'Create your own front'
+        ()=> openEditor('defense','formation'), 'Create your own front',
+      null, null, 'defense'
       ));
     } else {
       panel.appendChild(waitingBox("Defence is matching your formation\u2026"));
@@ -1538,7 +1571,8 @@ function buildLocalPanel(phase){
       groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
         k=>writeGame(g=>{ g.offKey=k; g.offCustom=null; g.phase='DEF_FRONT'; }),
         item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
-      ()=> openEditor('offense','formation'), 'Create your own formation'
+      ()=> openEditor('offense','formation'), 'Create your own formation',
+    null, null, 'offense'
     ));
     if(kneelAvailable(game)) panel.appendChild(kneelButton());
 
@@ -1548,7 +1582,8 @@ function buildLocalPanel(phase){
       groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
         k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='HANDOFF_TO_OFF'; }),
         item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='HANDOFF_TO_OFF'; })),
-      ()=> openEditor('defense','formation'), 'Create your own front'
+      ()=> openEditor('defense','formation'), 'Create your own front',
+    null, null, 'defense'
     ));
 
   } else if(phase === 'HANDOFF_TO_OFF'){
@@ -1608,7 +1643,8 @@ function buildAIPanel(phase){
       groupsByPersonnel(formations, customOffFormations, offPersonnelOf,
         k=>writeGame(g=>{ g.offKey=k; g.offCustom=null; g.phase='DEF_FRONT'; }),
         item=>writeGame(g=>{ g.offKey=CUSTOM; g.offCustom=item; g.phase='DEF_FRONT'; })),
-      ()=> openEditor('offense','formation'), 'Create your own formation'
+      ()=> openEditor('offense','formation'), 'Create your own formation',
+    null, null, 'offense'
     ));
     if(kneelAvailable(game)) panel.appendChild(kneelButton());
 
@@ -1618,7 +1654,8 @@ function buildAIPanel(phase){
       groupsByPersonnel(fronts, customDefFormations, defPersonnelOf,
         k=>writeGame(g=>{ g.defFrontKey=k; g.defFrontCustom=null; g.phase='OFF_PLAY'; }),
         item=>writeGame(g=>{ g.defFrontKey=CUSTOM; g.defFrontCustom=item; g.phase='OFF_PLAY'; })),
-      ()=> openEditor('defense','formation'), 'Create your own front'
+      ()=> openEditor('defense','formation'), 'Create your own front',
+    null, null, 'defense'
     ));
 
   } else if(phase === 'OFF_PLAY'){
@@ -1730,8 +1767,8 @@ function defPersonnelOf(key, item, isCustom){
 function groupsByCategory(builtinDict, customList, categoryMap, onPick, onPickCustom){
   return Object.keys(categoryMap).map(catKey=>{
     const entries=[];
-    Object.keys(builtinDict).forEach(k=>{ if(builtinDict[k].category===catKey) entries.push({item:builtinDict[k],isCustom:false,onClick:()=>onPick(k)}); });
-    (customList||[]).forEach(item=>{ if(item.category===catKey) entries.push({item,isCustom:true,onClick:()=>onPickCustom(item)}); });
+    Object.keys(builtinDict).forEach(k=>{ if(builtinDict[k].category===catKey) entries.push({item:builtinDict[k],isCustom:false,key:k,onClick:()=>onPick(k)}); });
+    (customList||[]).forEach(item=>{ if(item.category===catKey) entries.push({item,isCustom:true,key:item.id,onClick:()=>onPickCustom(item)}); });
     return {heading:categoryMap[catKey], entries};
   }).filter(g=>g.entries.length);
 }
@@ -1740,16 +1777,16 @@ function groupsByPersonnel(builtinDict, customList, personnelFn, onPick, onPickC
   const map = {};
   Object.keys(builtinDict).forEach(k=>{
     const label = personnelFn(k,builtinDict[k],false);
-    (map[label] = map[label]||[]).push({item:builtinDict[k],isCustom:false,onClick:()=>onPick(k)});
+    (map[label] = map[label]||[]).push({item:builtinDict[k],isCustom:false,key:k,onClick:()=>onPick(k)});
   });
   (customList||[]).forEach(item=>{
     const label = personnelFn(item.id,item,true);
-    (map[label] = map[label]||[]).push({item,isCustom:true,onClick:()=>onPickCustom(item)});
+    (map[label] = map[label]||[]).push({item,isCustom:true,key:item.id,onClick:()=>onPickCustom(item)});
   });
   return Object.keys(map).sort().map(label=>({heading:label+' personnel', entries:map[label]}));
 }
 
-function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText){
+function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHandler, coachText, previewSide){
   const wrap = document.createElement('div');
   const p = document.createElement('div'); p.className='prompt'; p.innerHTML = promptText;
   wrap.appendChild(p);
@@ -1779,6 +1816,18 @@ function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHa
       btn.className = 'choice-btn' + (isDef ? ' def' : '');
       btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.item.note||''}</span>`;
       btn.onclick = e.onClick;
+      if(previewSide){
+        let hoverTimer = null;
+        btn.addEventListener('mouseenter', ()=>{
+          hoverTimer = setTimeout(()=>{
+            startFormationPreview(previewSide, e.isCustom?CUSTOM:e.key, e.isCustom?e.item:null);
+          }, 1000);
+        });
+        btn.addEventListener('mouseleave', ()=>{
+          clearTimeout(hoverTimer);
+          endFormationPreview();
+        });
+      }
       grid.appendChild(btn);
     });
     wrap.appendChild(grid);
@@ -1995,7 +2044,8 @@ let ed = { side:'offense', type:'formation', points:[], backdropKey:'singleback'
 
 function edInit(){
   ed = { side:'offense', type:'formation', points:[], backdropKey:'singleback',
-    arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category:'run', personnel:'11', editingId:null };
+    arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category:'run', personnel:'11', editingId:null,
+    ghostOn:false, ghostKey:'base43' };
   ed.points = edDefaultPoints('offense');
 }
 
@@ -2014,6 +2064,7 @@ function roleForDepth(y){
 
 function edSwitchSide(side){
   ed.side = side; ed.editingId = null;
+  ed.ghostKey = side==='offense' ? 'base43' : 'singleback';
   if(ed.type==='formation'){ ed.points = edDefaultPoints(side); ed.personnel='11'; }
   else { ed.category = side==='offense'?'run':'runD'; ed.arrowEnd={x:380,y:EDITOR_LOS_Y-90}; ed.backdropKey = side==='offense'?'singleback':'base43'; }
   renderEditorScreen();
@@ -2078,6 +2129,28 @@ function edFlip(){
 }
 
 const PERSONNEL_OPTIONS = ['00','01','02','10','11','12','13','20','21','22','23','31','32'];
+function ghostControlsHtml(){
+  const isOff = ed.side==='offense';
+  const oppDict = isOff ? fronts : formations;
+  const oppCustomList = isOff ? customDefFormations : customOffFormations;
+  let opts = Object.keys(oppDict).map(k=>`<option value="${k}" ${ed.ghostKey===k?'selected':''}>${oppDict[k].name}</option>`).join('');
+  oppCustomList.forEach(item=>{ opts += `<option value="custom:${item.id}" ${ed.ghostKey==='custom:'+item.id?'selected':''}>${item.name}</option>`; });
+  return `
+    <div class="ed-toolbar" style="margin-top:8px;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px;">
+        <input type="checkbox" id="edGhostToggle" ${ed.ghostOn?'checked':''}> Show opposing team (transparent)
+      </label>
+      <select class="ed-select" id="edGhostFormation" ${ed.ghostOn?'':'disabled'}>${opts}</select>
+    </div>`;
+}
+function wireGhostControls(){
+  const toggle = document.getElementById('edGhostToggle');
+  if(!toggle) return;
+  const sel = document.getElementById('edGhostFormation');
+  toggle.onchange = ()=>{ ed.ghostOn = toggle.checked; sel.disabled = !ed.ghostOn; edRenderCanvas(); };
+  sel.onchange = ()=>{ ed.ghostKey = sel.value; edRenderCanvas(); };
+}
+
 function personnelSelectHtml(selected){
   return '<select class="ed-select" id="edPersonnel">' +
     PERSONNEL_OPTIONS.map(o=>`<option value="${o}" ${selected===o?'selected':''}>${o} personnel</option>`).join('') +
@@ -2090,6 +2163,7 @@ async function edPersist(){
   const nameInput = document.getElementById('edName');
   const name = (nameInput && nameInput.value.trim()) || 'Untitled';
   const isOff = ed.side==='offense';
+  let ok = true;
   if(ed.type==='formation'){
     if(isOff){
       const backfieldCount = ed.points.filter(p => (p.y - EDITOR_LOS_Y) > LINE_TOLERANCE).length;
@@ -2100,7 +2174,7 @@ async function edPersist(){
     }
     const players = ed.points.map(p=> isOff
       ? {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y)}
-      : {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y), role: roleForDepth(p.y)});
+      : {x:Math.round(p.x), y:Math.round(p.y-EDITOR_LOS_Y), role: roleForDepth(p.y), customLabel: p.customLabel||null});
     const item = { id: ed.editingId || genId(), name, players };
     if(isOff){
       const personnelInput = document.getElementById('edPersonnel');
@@ -2110,7 +2184,7 @@ async function edPersist(){
     let list = (isOff ? customOffFormations : customDefFormations).filter(x=>x.id!==item.id);
     list.push(item);
     if(isOff) customOffFormations = list; else customDefFormations = list;
-    await saveCustomList(key, list);
+    ok = await saveCustomList(key, list);
   } else if(isOff){
     const dx = ed.arrowEnd.x - 320;
     const bend = Math.max(0.1, Math.min(0.9, Math.abs(dx)/300));
@@ -2118,14 +2192,19 @@ async function edPersist(){
       note: "A play you designed.", xTarget: Math.round(ed.arrowEnd.x), bend };
     let list = customOffPlays.filter(x=>x.id!==item.id); list.push(item);
     customOffPlays = list;
-    await saveCustomList(CUSTOM_STORE_KEYS.offPlay, list);
+    ok = await saveCustomList(CUSTOM_STORE_KEYS.offPlay, list);
   } else {
     const item = { id: ed.editingId || genId(), name, category: ed.category,
       note: "A call you designed.", arrowEnd: {x:Math.round(ed.arrowEnd.x), y:Math.round(ed.arrowEnd.y)} };
     let list = customDefCalls.filter(x=>x.id!==item.id); list.push(item);
     customDefCalls = list;
-    await saveCustomList(CUSTOM_STORE_KEYS.defCall, list);
+    ok = await saveCustomList(CUSTOM_STORE_KEYS.defCall, list);
   }
+  if(!ok){
+    alert("That didn't save \u2014 your browser is blocking local storage here (this can happen in private/incognito mode, or if you're opening the file directly instead of the live website). Try the live site in a normal browser window.");
+    return false;
+  }
+  alert('Saved.');
   return true;
 }
 
@@ -2153,7 +2232,7 @@ function openEditor(side, type){
   editorOverlay = { side, type };
   ed = { side, type, points:[], backdropKey: side==='offense'?'singleback':'base43',
     arrowEnd:{x:380,y:EDITOR_LOS_Y-90}, category: type==='play' ? (side==='offense'?'run':'runD') : null,
-    personnel:'11', editingId:null };
+    personnel:'11', editingId:null, ghostOn:false, ghostKey: side==='offense'?'base43':'singleback' };
   if(type==='formation') ed.points = edDefaultPoints(side);
   renderPanel();
 }
@@ -2199,6 +2278,7 @@ function renderInlineEditor(){
       ${ed.type==='formation' && isOff ? personnelSelectHtml(ed.personnel) : ''}
       <input class="ed-input" id="edName" placeholder="Name it\u2026" maxlength="40" value="${existingName}">
     </div>
+    ${ed.type==='formation' ? ghostControlsHtml() : ''}
     ${catButtonsHtml}
     <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <p class="ed-hint">${ed.type==='formation'
@@ -2222,6 +2302,7 @@ function renderInlineEditor(){
     document.getElementById('edSaveBtn').onclick = edSaveInline;
     if(document.getElementById('edDeleteBtn')) document.getElementById('edDeleteBtn').onclick = edDeleteInline;
     document.getElementById('edCancelBtn').onclick = edCancelInline;
+    wireGhostControls();
     edRenderCanvas();
   });
 
@@ -2278,6 +2359,7 @@ function renderEditorScreen(){
       ${ed.type==='formation' && isOff ? personnelSelectHtml(ed.personnel) : ''}
       <input class="ed-input" id="edName" placeholder="Name it\u2026" maxlength="40" value="${existingName}">
     </div>
+    ${ed.type==='formation' ? ghostControlsHtml() : ''}
     ${catButtonsHtml}
     <div class="ed-canvas-wrap"><svg id="edSvg" viewBox="0 0 640 760" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <p class="ed-hint">${ed.type==='formation'
@@ -2303,6 +2385,7 @@ function renderEditorScreen(){
   document.getElementById('edSaveBtn').onclick = edSave;
   if(document.getElementById('edDeleteBtn')) document.getElementById('edDeleteBtn').onclick = edDelete;
   document.getElementById('edBackBtn').onclick = ()=>{ appScreen='landing'; renderLobby(); };
+  wireGhostControls();
 
   edRenderCanvas();
 }
@@ -2321,10 +2404,12 @@ function edStartDragPoint(evt, i, svg){
   const startP = edSvgPoint(evt, svg);
   const orig = ed.points[i];
   const offX = orig.x - startP.x, offY = orig.y - startP.y;
+  let moved = false;
   const move = e=>{
     const p = edSvgPoint(e, svg);
     const nx = p.x+offX;
     let ny = p.y+offY;
+    if(Math.abs(nx-orig.x) > 3 || Math.abs(ny-orig.y) > 3) moved = true;
     // genuine rule: nobody may line up across the line of scrimmage before the snap
     ny = ed.side==='offense' ? Math.max(ny, EDITOR_LOS_Y) : Math.min(ny, EDITOR_LOS_Y);
     ed.points[i] = ed.side==='defense'
@@ -2332,9 +2417,32 @@ function edStartDragPoint(evt, i, svg){
       : {...ed.points[i], x:nx, y:ny};
     edRenderCanvas();
   };
-  const up = ()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
+  const up = ()=>{
+    window.removeEventListener('pointermove',move);
+    window.removeEventListener('pointerup',up);
+    if(!moved && ed.side==='defense') handleDefenderClick(i);
+  };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
+}
+
+let defenderClickTracker = { index:null, count:0, timer:null };
+function handleDefenderClick(i){
+  if(defenderClickTracker.index !== i){ defenderClickTracker.index = i; defenderClickTracker.count = 0; }
+  defenderClickTracker.count++;
+  clearTimeout(defenderClickTracker.timer);
+  defenderClickTracker.timer = setTimeout(()=>{ defenderClickTracker.count=0; defenderClickTracker.index=null; }, 1500);
+  if(defenderClickTracker.count >= 3){
+    defenderClickTracker.count = 0; defenderClickTracker.index = null;
+    clearTimeout(defenderClickTracker.timer);
+    const current = ed.points[i].customLabel || '';
+    const input = prompt('Label this position (up to 4 letters):', current);
+    if(input !== null){
+      const clean = input.trim().toUpperCase().slice(0,4);
+      ed.points[i] = {...ed.points[i], customLabel: clean || null};
+      edRenderCanvas();
+    }
+  }
 }
 
 function edStartDragArrow(evt, svg){
@@ -2364,6 +2472,28 @@ function edRenderCanvas(){
   svg.appendChild(el('rect',{x:0,y:0,width:640,height:760,fill:'var(--board)'}));
   svg.appendChild(el('line',{x1:40,y1:EDITOR_LOS_Y,x2:600,y2:EDITOR_LOS_Y,stroke:'var(--chalk-dim)','stroke-width':1,'stroke-dasharray':'4,4'}));
   const isOff = ed.side==='offense';
+
+  if(ed.type==='formation' && ed.ghostOn){
+    let ghostPts = [];
+    try{
+      if(String(ed.ghostKey).startsWith('custom:')){
+        const id = ed.ghostKey.slice(7);
+        const list = isOff ? customDefFormations : customOffFormations;
+        const item = list.find(x=>x.id===id);
+        if(item) ghostPts = item.players.map(p=>({x:p.x, y:EDITOR_LOS_Y+p.y}));
+      } else {
+        ghostPts = isOff ? defensePoints(ed.ghostKey,null).map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y}))
+                          : offensePoints(ed.ghostKey,null).map(p=>({x:p.x,y:EDITOR_LOS_Y+p.y}));
+      }
+    }catch(e){ ghostPts = []; }
+    ghostPts.forEach((p,i)=>{
+      const shape = isOff ? 'O' : (i===2 ? 'square' : 'X');
+      const color = isOff ? 'var(--brick)' : 'var(--gold)';
+      const g = makeMarker(p.x, p.y, shape, color, false, 0);
+      g.style.opacity = '0.28';
+      svg.appendChild(g);
+    });
+  }
 
   if(ed.type==='formation'){
     const labels = (!isOff && showPosLabels) ? computePositionLabels(ed.points) : null;
