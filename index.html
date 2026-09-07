@@ -246,6 +246,7 @@
     <button data-nav="editor">Practice</button>
     <button data-nav="landing">Play</button>
     <button data-nav="about">About</button>
+    <button data-nav="leaderboard">Leaderboard</button>
     <button data-nav="feedback">Feedback</button>
   </div>
 </nav>
@@ -368,14 +369,14 @@ const fronts = {
 };
 
 const plays = {
-  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:330, bend:0.15, category:'run' },
-  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:520, bend:0.85, category:'run' },
-  quickPass:      { name:"Quick Pass",      note:"Get it out fast on a quick route before the rush arrives.",             xTarget:460, bend:0.55, category:'pass' },
-  playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:380, bend:0.35, category:'playAction' },
-  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:500, bend:0.6,  category:'pass' },
-  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:350, bend:0.25, category:'run' },
-  deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:380, bend:0.2, category:'deep' },
-  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:560, bend:0.9, category:'run' },
+  insideRun:      { name:"Inside Run",      note:"Hand it up the middle \u2014 trust the interior line to win their gaps.", xTarget:325, bend:0.1, category:'run' },
+  sweep:          { name:"Sweep",           note:"Pitch it wide \u2014 stretch the edge and turn the corner.",            xTarget:565, bend:0.85, category:'run' },
+  quickPass:      { name:"Quick Pass",      note:"Get it out fast on a quick route before the rush arrives.",             xTarget:430, bend:0.5,  category:'pass' },
+  playActionDeep: { name:"Play-Action Deep",note:"Sell the run fake, then take the shot over the top.",                   xTarget:390, bend:0.3,  category:'playAction' },
+  screen:         { name:"Screen",          note:"Let the rush come free, then spring it with blockers out in front.",    xTarget:578, bend:0.75, category:'pass' },
+  draw:           { name:"Draw",            note:"Drop back like a pass, then hand it off into the space the rush left behind.", xTarget:335, bend:0.2, category:'run' },
+  deepPass:       { name:"Deep Pass",       note:"No fake, no delay \u2014 drop straight back and take the shot downfield.", xTarget:355, bend:0.15, category:'deep' },
+  reverse:        { name:"Reverse",         note:"Hand it one way, then reverse it back across the formation the other way.", xTarget:585, bend:0.9, category:'run' },
 };
 const PLAY_CATEGORIES = { run:'Run', pass:'Pass', playAction:'Play-Action', deep:'Deep' };
 
@@ -743,6 +744,72 @@ function lsSetJSON(key, val){
   catch(e){ return false; }
 }
 
+/* ---- leaderboard ---- */
+
+let sessionStartMs = null;
+
+function ensurePlayerName(){
+  let name = lsGetJSON('schemer:playerName');
+  if(!name){
+    name = prompt('Pick a name for the leaderboard:');
+    if(name){ name = name.trim().slice(0,24); if(name) lsSetJSON('schemer:playerName', name); }
+  }
+  return name || null;
+}
+
+function sanitizeLbKey(name){ return name.replace(/[.#$\[\]\/]/g, '_').slice(0,40); }
+
+async function incrementLeaderboardStat(field, amount){
+  if(!FIREBASE_CONFIGURED) return;
+  const name = ensurePlayerName();
+  if(!name) return;
+  try{
+    await db.ref('leaderboard/'+sanitizeLbKey(name)).update({
+      name: name,
+      [field]: firebase.database.ServerValue.increment(amount),
+    });
+  }catch(e){ /* best effort */ }
+}
+
+function recordGameEvent(r){
+  if(!r || (mode!=='ai' && mode!=='online')) return;
+  if(r.touchdown && myRole==='offense') incrementLeaderboardStat('touchdowns', 1);
+  const isTurnoverOnDowns = r.driveOver && !r.touchdown && !r.special;
+  const isMissedFG = r.fieldGoalMade === false;
+  if((isTurnoverOnDowns || isMissedFG) && myRole==='defense') incrementLeaderboardStat('stops', 1);
+}
+
+function flushPlaytime(){
+  if(sessionStartMs && (mode==='ai' || mode==='online')){
+    const elapsed = (Date.now() - sessionStartMs) / 1000;
+    if(elapsed >= 1) incrementLeaderboardStat('playtime', Math.round(elapsed));
+  }
+  sessionStartMs = null;
+}
+
+async function loadLeaderboard(){
+  const el = document.getElementById('lbContent');
+  if(!el) return;
+  try{
+    const snap = await db.ref('leaderboard').once('value');
+    const all = snap.val() || {};
+    const list = Object.keys(all).map(k=>all[k]);
+    const top = (field)=> list.filter(x=>x && x[field]).sort((a,b)=>(b[field]||0)-(a[field]||0)).slice(0,5);
+    const fmtTime = (s)=>{ s=Math.round(s||0); const h=Math.floor(s/3600), m=Math.floor((s%3600)/60); return h>0 ? `${h}h ${m}m` : `${m}m`; };
+    const renderList = (title, entries, field, formatter)=>{
+      let html = `<div class="cat-heading">${title}</div>`;
+      if(!entries.length) return html + `<p class="sub">No games recorded yet.</p>`;
+      entries.forEach((e,i)=>{ html += `<div class="prompt">${i+1}. <em>${e.name}</em> \u2014 ${formatter?formatter(e[field]):e[field]}</div>`; });
+      return html;
+    };
+    el.innerHTML = renderList('Most Playtime', top('playtime'), 'playtime', fmtTime)
+      + renderList('Most Touchdowns', top('touchdowns'), 'touchdowns')
+      + renderList('Most Stops', top('stops'), 'stops');
+  }catch(e){
+    el.innerHTML = "Couldn't load the leaderboard right now.";
+  }
+}
+
 async function loadCustomList(key){ return lsGetJSON(key) || []; }
 async function saveCustomList(key, list){ return lsSetJSON(key, list); }
 async function loadAllCustom(){
@@ -796,6 +863,7 @@ function notConfiguredNotice(){
 
 async function createRoom(role, clockOn){
   if(!FIREBASE_CONFIGURED){ notConfiguredNotice(); return; }
+  if(FIREBASE_CONFIGURED) ensurePlayerName();
   mode = 'online';
   roomCode = genCode();
   myRole = role;
@@ -818,6 +886,7 @@ function startLocalGame(clockOn){
 }
 
 function startAIGame(humanSide, difficulty, offStyle, defStyle, clockOn){
+  if(FIREBASE_CONFIGURED) ensurePlayerName();
   mode = 'ai';
   myRole = humanSide;
   roomCode = null;
@@ -872,6 +941,7 @@ async function tryResumeSession(){
 }
 
 function goToScreen(name){
+  flushPlaytime();
   detachRoomListener();
   const wasLocal = mode === 'local';
   if(mode && !wasLocal) lsSetJSON(SESSION_KEY, null);
@@ -887,7 +957,7 @@ function goToScreen(name){
 function leaveGame(){ goToScreen('landing'); }
 
 function updateNavActive(){
-  const map = { home:'home', editor:'editor', about:'about', feedback:'feedback' };
+  const map = { home:'home', editor:'editor', about:'about', feedback:'feedback', leaderboard:'leaderboard' };
   const active = map[appScreen] || 'landing';
   document.querySelectorAll('.topnav button').forEach(b=> b.classList.toggle('active', b.dataset.nav===active));
 }
@@ -913,11 +983,14 @@ function attachRoomListener(){
 function detachRoomListener(){ if(roomListenerRef){ roomListenerRef.off(); roomListenerRef = null; } }
 
 async function writeGame(mutator){
+  const wasResult = game.phase === 'RESULT';
   const copy = JSON.parse(JSON.stringify(game));
   mutator(copy);
   copy.seq = (game.seq||0) + 1;
+  const justResolved = !wasResult && copy.phase === 'RESULT';
   game = copy;
   render();
+  if(justResolved) recordGameEvent(copy.lastResult);
   if(mode === 'online'){
     try{ await roomRef(roomCode).set({meta:roomMeta, game}); } catch(e){ /* will retry on next action */ }
   }
@@ -930,6 +1003,7 @@ function enterGame(){
   document.getElementById('mastheadTag').innerHTML = mode === 'local'
     ? 'local 2-player'
     : 'room <b style="color:var(--gold)">'+roomCode+'</b>';
+  if(mode === 'ai' || mode === 'online') sessionStartMs = Date.now();
   drawStaticField();
   render();
   updateNavActive();
@@ -971,6 +1045,20 @@ function renderLobby(){
       <div class="footer-link" style="margin-top:6px;"><a id="aboutBack">back to home</a></div>`;
     lobby.appendChild(c);
     document.getElementById('aboutBack').onclick = ()=> goToScreen('home');
+    return;
+  }
+
+  if(appScreen === 'leaderboard'){
+    const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
+    if(!FIREBASE_CONFIGURED){
+      c.innerHTML = `<h2 style="text-align:center;">Leaderboard</h2>
+        <p class="sub">This uses the same backend as online multiplayer \u2014 once that's set up, playtime, touchdowns, and stops from every AI and online game start showing up here automatically, no extra work needed.</p>`;
+      lobby.appendChild(c);
+      return;
+    }
+    c.innerHTML = `<h2 style="text-align:center;">Leaderboard</h2><div id="lbContent" class="sub">Loading\u2026</div>`;
+    lobby.appendChild(c);
+    loadLeaderboard();
     return;
   }
 
@@ -1372,6 +1460,8 @@ function formatClock(sec){
 /* ================= main render ================= */
 
 let previewOverride = null; // { side:'offense'|'defense', key, custom } \u2014 hover-preview on the field
+let formationHoverTimer = null;
+let formationPreviewEndTimer = null;
 function startFormationPreview(side, key, custom){ previewOverride = {side, key, custom}; render(); }
 function endFormationPreview(){ if(previewOverride){ previewOverride = null; render(); } }
 
@@ -1846,15 +1936,16 @@ function choiceGrid(promptText, isDef, groups, onCreateNew, createLabel, typedHa
       btn.innerHTML = `<span class="name">${e.item.name}${e.isCustom?' <span class="custom-pill">yours</span>':''}</span><span class="desc">${e.item.note||''}</span>`;
       btn.onclick = e.onClick;
       if(previewSide){
-        let hoverTimer = null;
         btn.addEventListener('mouseenter', ()=>{
-          hoverTimer = setTimeout(()=>{
+          clearTimeout(formationHoverTimer);
+          formationHoverTimer = setTimeout(()=>{
             startFormationPreview(previewSide, e.isCustom?CUSTOM:e.key, e.isCustom?e.item:null);
+            clearTimeout(formationPreviewEndTimer);
+            formationPreviewEndTimer = setTimeout(()=>{ endFormationPreview(); }, 10000);
           }, 1000);
         });
         btn.addEventListener('mouseleave', ()=>{
-          clearTimeout(hoverTimer);
-          endFormationPreview();
+          clearTimeout(formationHoverTimer);
         });
       }
       grid.appendChild(btn);
