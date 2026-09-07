@@ -473,6 +473,39 @@ console.log('\n=== 20. Onboarding walkthrough shows for first-time visitors and 
   assert(!!dom2.window.document.getElementById('onboardingOverlay'), 'clicking it reopens the walkthrough on demand');
 }
 
+console.log('\n=== 21. Trainer mode: structural integrity across many rounds ===');
+{
+  const { w } = freshWindow('window.pickTrainerRound=pickTrainerRound; window.__getTrainerState=()=>trainerState; window.trainerPick=trainerPick; window.trainerNext=trainerNext;');
+  const { calls, defensePoints } = w.__exports;
+  let issues = 0, blitzChecks = 0;
+  for(let i=0;i<200;i++){
+    w.pickTrainerRound(null);
+    const s = w.__getTrainerState();
+    if(!s.frontKey) issues++;
+    if(new Set(s.options).size !== s.options.length) issues++;
+    if(!s.options.includes(s.correctKey)) issues++;
+    if(calls[s.callKey].category==='blitz'){
+      blitzChecks++;
+      const pts = defensePoints(s.frontKey, null);
+      const boxCount = pts.filter(p=>p.role==='DL'||p.role==='LB').length;
+      if(boxCount < 5) issues++;
+    }
+  }
+  assert(issues===0, `200 trainer rounds all structurally valid (4 unique options, correct answer included, blitzes matched to real fronts)`, `${issues} issues, ${blitzChecks} blitz rounds checked`);
+
+  await new Promise(r=>setTimeout(r,100));
+  w.goToScreen('trainer');
+  const s = w.__getTrainerState();
+  scanForNull(w, 'trainer screen initial render');
+  w.trainerPick(s.correctKey);
+  assert(w.__getTrainerState().correctCount === 1, 'picking the correct answer increments the score');
+  scanForNull(w, 'trainer screen after answering');
+  const nextBtn = w.document.getElementById('trainerResult').querySelector('button');
+  assert(!!nextBtn, '"Next look" button appears after answering');
+  nextBtn.click();
+  assert(w.__getTrainerState().totalCount === 1 && w.__getTrainerState().answered === false, 'starting the next round keeps score and resets the answered state');
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed > 0 ? 1 : 0);
 

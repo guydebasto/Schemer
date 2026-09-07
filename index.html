@@ -107,6 +107,8 @@
   .choice-btn .name{display:block;font-weight:700;font-size:14px;margin-bottom:4px;}
   .choice-btn .desc{display:block;font-size:12px;color:var(--chalk-dim);line-height:1.4;}
   .choice-btn .strength-hint{display:block;font-size:11px;color:var(--gold);opacity:0.85;margin-top:3px;font-style:italic;}
+  .choice-btn.trainer-correct{ border-color:var(--gold); background:rgba(232,196,104,0.12); }
+  .choice-btn.trainer-wrong{ border-color:var(--brick); background:rgba(193,80,63,0.12); }
   .choice-btn.def:hover{border-color:var(--brick);background:rgba(193,80,63,0.08);}
   .choice-btn.disabled-btn{ opacity:0.4; cursor:not-allowed; }
   .choice-btn.disabled-btn:hover{ border-color:var(--board-line); background:transparent; }
@@ -269,6 +271,7 @@
     <button data-nav="home">Home</button>
     <button data-nav="editor">Practice</button>
     <button data-nav="landing">Play</button>
+    <button data-nav="trainer">Trainer</button>
     <button data-nav="about">About</button>
     <button data-nav="leaderboard">Leaderboard</button>
     <button data-nav="feedback">Feedback</button>
@@ -1226,7 +1229,7 @@ function goToScreen(name){
 function leaveGame(){ goToScreen('landing'); }
 
 function updateNavActive(){
-  const map = { home:'home', editor:'editor', about:'about', feedback:'feedback', leaderboard:'leaderboard' };
+  const map = { home:'home', editor:'editor', about:'about', feedback:'feedback', leaderboard:'leaderboard', trainer:'trainer' };
   const active = map[appScreen] || 'landing';
   document.querySelectorAll('.topnav button').forEach(b=> b.classList.toggle('active', b.dataset.nav===active));
 }
@@ -1316,6 +1319,11 @@ function renderLobby(){
       <div class="footer-link" style="margin-top:6px;"><a id="aboutBack">back to home</a></div>`;
     lobby.appendChild(c);
     document.getElementById('aboutBack').onclick = ()=> goToScreen('home');
+    return;
+  }
+
+  if(appScreen === 'trainer'){
+    renderTrainerScreen();
     return;
   }
 
@@ -3297,6 +3305,132 @@ function renderPlayPreviewSvg(playObj){
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+}
+
+let trainerState = null; // { callKey, frontKey, options:[playKey,...], correctKey, answered, chosenKey, correctCount, totalCount }
+
+function pickTrainerRound(prevScore){
+  // find a defensive call that has at least 2 explicit outcome entries, so there's a real best/worst distinction
+  const eligibleCalls = Object.keys(calls).filter(ck=>{
+    const matches = Object.keys(outcomes).filter(pk=> outcomes[pk][ck] != null);
+    return matches.length >= 2;
+  });
+  const callKey = eligibleCalls[Math.floor(Math.random()*eligibleCalls.length)];
+  const callObj = calls[callKey];
+
+  // pick a front that can actually run this call (respects safety requirements, and blitzes need real box presence)
+  const validFronts = Object.keys(fronts).filter(fk=>{
+    if(callObj.needsSafeties && frontSafetyCount(fk, null) < callObj.needsSafeties) return false;
+    if(callObj.category === 'blitz'){
+      const pts = defensePoints(fk, null);
+      const boxCount = pts.filter(p=>p.role==='DL'||p.role==='LB').length;
+      if(boxCount < 5) return false; // blitzes need a real front seven, not a prevent-style shell
+    }
+    return true;
+  });
+  const frontKey = validFronts[Math.floor(Math.random()*validFronts.length)];
+
+  // rank every play that has an explicit entry for this call
+  const ranked = Object.keys(outcomes)
+    .filter(pk=> outcomes[pk][callKey] != null)
+    .map(pk=>({ playKey:pk, yards:outcomes[pk][callKey].yards }))
+    .sort((a,b)=> b.yards-a.yards);
+  const correctKey = ranked[0].playKey;
+  const worstKey = ranked[ranked.length-1].playKey;
+
+  // build 4 options: the correct one, the worst-ranked one, and 1-2 random other plays for variety
+  const otherPlayKeys = Object.keys(plays).filter(pk=> pk!==correctKey && pk!==worstKey);
+  const shuffled = otherPlayKeys.sort(()=>Math.random()-0.5);
+  const options = [correctKey, worstKey, shuffled[0], shuffled[1]].filter(Boolean);
+  const uniqueOptions = [...new Set(options)];
+  while(uniqueOptions.length < 4 && shuffled.length){
+    const extra = shuffled.pop();
+    if(extra && !uniqueOptions.includes(extra)) uniqueOptions.push(extra);
+  }
+  uniqueOptions.sort(()=>Math.random()-0.5);
+
+  trainerState = {
+    callKey, frontKey, options: uniqueOptions, correctKey, answered:false, chosenKey:null,
+    correctCount: prevScore ? prevScore.correctCount : 0,
+    totalCount: prevScore ? prevScore.totalCount : 0,
+  };
+}
+
+function trainerOutcomeFor(playKey){
+  const fakeGame = { offPlayKey:playKey, offPlayCustom:null, defCallKey:trainerState.callKey, defCallCustom:null };
+  return computeOutcome(fakeGame);
+}
+
+function trainerPick(playKey){
+  trainerState.answered = true;
+  trainerState.chosenKey = playKey;
+  trainerState.totalCount++;
+  if(playKey === trainerState.correctKey) trainerState.correctCount++;
+  renderLobby();
+}
+
+function trainerNext(){
+  pickTrainerRound(trainerState);
+  renderLobby();
+}
+
+function renderTrainerScreen(){
+  if(!trainerState) pickTrainerRound(null);
+  const s = trainerState;
+  const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left';
+
+  const callObj = calls[s.callKey];
+  const scoreLine = s.totalCount ? `${s.correctCount}/${s.totalCount} correct` : 'Read the defence, call the right play.';
+
+  c.innerHTML = `<h2 style="text-align:center;">Trainer</h2>
+    <p class="sub" style="text-align:center;">${scoreLine}</p>
+    <div id="trainerFieldWrap" class="ed-canvas-wrap" style="margin-bottom:10px;"></div>
+    <div class="prompt"><em>${callObj.name}</em> \u2014 ${callObj.note}</div>
+    <div class="cat-heading">Which play do you call?</div>
+    <div class="choice-grid" id="trainerOptions"></div>
+    <div id="trainerResult"></div>`;
+  lobby.appendChild(c);
+
+  // draw the defensive front on a small field
+  const svgWrap = document.getElementById('trainerFieldWrap');
+  const ly = EDITOR_LOS_Y;
+  const svg = el('svg', {viewBox:`0 ${ly-100} 640 150`, xmlns:svgNS, style:'width:100%;height:auto;display:block;'});
+  svg.appendChild(el('rect',{x:0,y:ly-100,width:640,height:150,fill:'var(--board)'}));
+  svg.appendChild(el('line',{x1:40,y1:ly,x2:600,y2:ly,stroke:'var(--chalk-dim)','stroke-width':1,'stroke-dasharray':'4,4'}));
+  const dPts = defensePoints(s.frontKey, null);
+  const labels = computePositionLabels(dPts);
+  dPts.forEach((p,i)=> svg.appendChild(makeLabelMarker(p.x, ly+p.y, labels[i]||p.role||'?', 'var(--brick)', false, i)));
+  svgWrap.appendChild(svg);
+
+  const optGrid = document.getElementById('trainerOptions');
+  s.options.forEach(pk=>{
+    const btn = document.createElement('button');
+    const playObj = plays[pk];
+    const isChosen = s.answered && s.chosenKey===pk;
+    const isCorrect = s.answered && pk===s.correctKey;
+    btn.className = 'choice-btn' + (isCorrect ? ' trainer-correct' : (isChosen ? ' trainer-wrong' : ''));
+    btn.innerHTML = `<span class="name">${playObj.name}</span><span class="desc">${playObj.note||''}</span>`;
+    if(!s.answered) btn.onclick = ()=> trainerPick(pk);
+    else btn.disabled = true;
+    optGrid.appendChild(btn);
+  });
+
+  const resultWrap = document.getElementById('trainerResult');
+  if(s.answered){
+    const chosenOutcome = trainerOutcomeFor(s.chosenKey);
+    const wasCorrect = s.chosenKey === s.correctKey;
+    let html = `<div class="prompt" style="margin-top:12px;">${wasCorrect ? '<strong style="color:var(--gold);">Good read.</strong>' : '<strong style="color:var(--brick);">Not the best call.</strong>'} ${chosenOutcome.text} (${chosenOutcome.yards} yard${chosenOutcome.yards===1?'':'s'})</div>`;
+    if(!wasCorrect){
+      const bestOutcome = trainerOutcomeFor(s.correctKey);
+      html += `<div class="prompt">Best answer was <em>${plays[s.correctKey].name}</em>: ${bestOutcome.text} (${bestOutcome.yards} yards)</div>`;
+    }
+    resultWrap.innerHTML = html;
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'primary-btn'; nextBtn.style.marginTop = '10px';
+    nextBtn.textContent = 'Next look';
+    nextBtn.onclick = trainerNext;
+    resultWrap.appendChild(nextBtn);
+  }
 }
 
 function playcallReferenceCard(){
