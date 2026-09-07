@@ -1309,12 +1309,25 @@ function drawLineMarker(dyn, y, color, dashed){
 const FIELD_TOP_Y = 64, FIELD_BOTTOM_Y = 696; // keeps players out of the end zones
 function clampFieldY(y){ return Math.max(FIELD_TOP_Y, Math.min(FIELD_BOTTOM_Y, y)); }
 
+function offensePositionLabels(formKey){
+  const f = formations[formKey];
+  if(!f) return null; // custom formations don't carry position labels
+  const labels = new Array(11).fill(null);
+  f.skill.forEach((p,i)=>{ labels[5+i] = p.label; });
+  return labels;
+}
+
 function drawOffense(dyn, formKey, formCustom, ly, animate, motionOverride){
   const pts = offensePoints(formKey, formCustom);
+  const labels = showPosLabels ? offensePositionLabels(formKey) : null;
   pts.forEach((p,i)=>{
     let x = p.x, y = clampFieldY(ly+p.y);
     if(motionOverride && i===motionOverride.index){ x = motionOverride.pos.x; y = clampFieldY(ly+motionOverride.pos.y); }
-    dyn.appendChild(makeMarker(x, y, i===2?'square':'X', 'var(--gold)', animate, i));
+    if(labels && labels[i]){
+      dyn.appendChild(makeLabelMarker(x, y, labels[i], 'var(--gold)', animate, i));
+    } else {
+      dyn.appendChild(makeMarker(x, y, i===2?'square':'X', 'var(--gold)', animate, i));
+    }
   });
 }
 function drawDefense(dyn, frontKey, frontCustom, ly, animate){
