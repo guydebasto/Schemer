@@ -384,7 +384,7 @@ console.log('\n=== 16. Core/full playbook toggle actually re-renders the screen 
   assert(btns.length === 8, 'default view shows only the 8 core offensive plays', btns.length);
   assert(!btns.includes('Power'), 'a non-core play (Power) is hidden by default');
 
-  const toggleBtn = [...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('tap to see all'));
+  const toggleBtn = [...w.document.querySelectorAll('button')].find(b=>b.textContent==='Show all plays');
   assert(!!toggleBtn, 'the core/full toggle button is present');
   toggleBtn.click();
   await new Promise(r=>setTimeout(r,60));
@@ -604,6 +604,28 @@ console.log('\n=== 25. QB never gets a route, and long plays don\u2019t make rec
 
   assert(routeProgressFor(0.3) === 1, 'a receiver\u2019s route is fully complete by 30% into the play\u2019s total animation time (representing a quick release+catch)');
   assert(routeProgressFor(0.9) === 1, 'the route stays complete (holds position) for the rest of a long-developing play, instead of continuing to glide');
+}
+
+console.log('\n=== 26. Defensive calls can be previewed on the reference page, and the toggle choice persists ===');
+{
+  const { w } = freshWindow();
+  await new Promise(r=>setTimeout(r,100));
+  w.goToScreen('editor');
+  const cover2Btn = [...w.document.querySelectorAll('.choice-btn')].find(b=>b.querySelector('.name') && b.querySelector('.name').textContent.trim()==='Cover 2');
+  assert(!!cover2Btn && cover2Btn.style.cursor==='pointer', 'a defensive call is now clickable on the reference page');
+  cover2Btn.click();
+  const svg = w.document.getElementById('playcallPreviewSvg').querySelector('svg');
+  assert(!!svg, 'clicking a defensive call renders a preview');
+  const label = w.document.getElementById('playcallPreviewLabel').textContent;
+  assert(label.includes('Cover 2') && label.includes('shown out of'), 'the preview shows which front the call is being run out of', label);
+
+  const dom2 = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://example.com/' });
+  dom2.window.firebase = { initializeApp(){}, database: () => ({ ref: () => ({ set: async()=>{}, once: async()=>({val:()=>null}), on(){}, off(){} }) }) };
+  dom2.window.firebase.database.ServerValue = { increment: n => ({__inc:n}) };
+  dom2.window.prompt = () => 'x'; dom2.window.alert = () => {};
+  dom2.window.localStorage.setItem('schemer:showAllPlays', 'true');
+  dom2.window.eval(appScript + '\nwindow.__getShowAll=()=>showAllPlays;');
+  assert(dom2.window.__getShowAll() === true, 'the show-all-plays choice persists across visits via localStorage');
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

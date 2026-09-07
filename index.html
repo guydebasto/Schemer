@@ -983,7 +983,7 @@ function aiPickFront(){
 let editorOverlay = null; // {side,type} when the inline in-game creator is open
 let aiPending = false; // guards against overlapping AI decision timers
 let showPosLabels = false; // toggle: defensive players shown as position abbreviations instead of circles
-let showAllPlays = false; // toggle: full 22/18-play roster vs the 8 core fundamentals per side
+let showAllPlays = !!lsGetJSON('schemer:showAllPlays'); // toggle: full 22/18-play roster vs the 8 core fundamentals per side (persisted across visits)
 
 function refreshCurrentView(){
   if(editorOverlay){ renderPanel(); }
@@ -2615,12 +2615,18 @@ function defPersonnelOf(key, item, isCustom){
 
 function playbookToggleRow(){
   const wrap = document.createElement('div');
-  wrap.style.textAlign = 'center'; wrap.style.marginBottom = '10px';
+  wrap.style.cssText = 'text-align:center; margin-bottom:14px; padding:10px; border:1px solid var(--gold-dim); background:rgba(232,196,104,0.08); border-radius:2px;';
+  const label = document.createElement('div');
+  label.className = 'sub';
+  label.style.marginBottom = '8px';
+  label.textContent = showAllPlays
+    ? "Showing the full playbook."
+    : "Only the 8 core plays are shown by default \u2014 there are more.";
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'ghost' + (showAllPlays ? ' active-toggle' : '');
-  btn.textContent = showAllPlays ? 'Showing all \u2014 tap for core only' : 'Showing core plays \u2014 tap to see all';
-  btn.onclick = ()=>{ showAllPlays = !showAllPlays; refreshCurrentView(); };
+  btn.textContent = showAllPlays ? 'Show core plays only' : 'Show all plays';
+  btn.onclick = ()=>{ showAllPlays = !showAllPlays; lsSetJSON('schemer:showAllPlays', showAllPlays); refreshCurrentView(); };
+  wrap.appendChild(label);
   wrap.appendChild(btn);
   return wrap;
 }
@@ -3328,6 +3334,25 @@ function renderInlineEditor(){
 }
 
 let playPreviewGen = 0;
+function renderCallPreviewSvg(callObj){
+  const container = document.getElementById('playcallPreviewSvg');
+  const label = document.getElementById('playcallPreviewLabel');
+  if(!container) return;
+  playPreviewGen++; // invalidate any running offense route-preview loop
+  container.innerHTML = '';
+  const ly = EDITOR_LOS_Y;
+  const svg = el('svg', {viewBox:`0 ${ly-100} 640 150`, xmlns:svgNS, style:'width:100%;height:auto;display:block;'});
+  svg.appendChild(el('rect',{x:0,y:ly-100,width:640,height:150,fill:'var(--board)'}));
+  svg.appendChild(el('line',{x1:40,y1:ly,x2:600,y2:ly,stroke:'var(--chalk-dim)','stroke-width':1,'stroke-dasharray':'4,4'}));
+  const validFronts = validFrontsFor(callObj);
+  const frontKey = validFronts[0] || Object.keys(fronts)[0];
+  const pts = defensePoints(frontKey, null);
+  const labels = computePositionLabels(pts);
+  pts.forEach((p,i)=> svg.appendChild(makeLabelMarker(p.x, ly+p.y, labels[i]||p.role||'?', 'var(--brick)', false, i)));
+  container.appendChild(svg);
+  if(label) label.textContent = callObj.name + ' \u2014 shown out of ' + fronts[frontKey].name;
+}
+
 function renderPlayPreviewSvg(playObj){
   const container = document.getElementById('playcallPreviewSvg');
   const label = document.getElementById('playcallPreviewLabel');
@@ -3370,6 +3395,18 @@ function renderPlayPreviewSvg(playObj){
 
 let trainerState = null; // { callKey, frontKey, options:[playKey,...], correctKey, answered, chosenKey, correctCount, totalCount }
 
+function validFrontsFor(callObj){
+  return Object.keys(fronts).filter(fk=>{
+    if(callObj.needsSafeties && frontSafetyCount(fk, null) < callObj.needsSafeties) return false;
+    if(callObj.category === 'blitz'){
+      const pts = defensePoints(fk, null);
+      const boxCount = pts.filter(p=>p.role==='DL'||p.role==='LB').length;
+      if(boxCount < 5) return false; // blitzes need a real front seven, not a prevent-style shell
+    }
+    return true;
+  });
+}
+
 function pickTrainerRound(prevScore){
   // find a defensive call that has at least 2 explicit outcome entries, so there's a real best/worst distinction
   const eligibleCalls = Object.keys(calls).filter(ck=>{
@@ -3380,15 +3417,7 @@ function pickTrainerRound(prevScore){
   const callObj = calls[callKey];
 
   // pick a front that can actually run this call (respects safety requirements, and blitzes need real box presence)
-  const validFronts = Object.keys(fronts).filter(fk=>{
-    if(callObj.needsSafeties && frontSafetyCount(fk, null) < callObj.needsSafeties) return false;
-    if(callObj.category === 'blitz'){
-      const pts = defensePoints(fk, null);
-      const boxCount = pts.filter(p=>p.role==='DL'||p.role==='LB').length;
-      if(boxCount < 5) return false; // blitzes need a real front seven, not a prevent-style shell
-    }
-    return true;
-  });
+  const validFronts = validFrontsFor(callObj);
   const frontKey = validFronts[Math.floor(Math.random()*validFronts.length)];
 
   // rank every play that has an explicit entry for this call
@@ -3497,12 +3526,12 @@ function renderTrainerScreen(){
 function playcallReferenceCard(){
   const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left'; c.style.marginTop='16px';
   c.innerHTML = `<h2 style="text-align:center;">All Playcalls</h2>
-    <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created. Tap an offensive play to see it run.</p>
+    <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created. Tap any play or call to preview it.</p>
     <input class="ed-input" id="playcallSearch" type="text" placeholder="Search plays and calls\u2026" style="width:100%;margin-bottom:12px;">
     <div id="playcallPreviewLabel" class="sub" style="text-align:center;min-height:16px;"></div>
     <div id="playcallPreviewSvg" class="ed-canvas-wrap" style="margin-bottom:14px;"></div>`;
 
-  const renderSide = (label, builtinDict, customList, categoryMap, removeKind, clickable, hintFn)=>{
+  const renderSide = (label, builtinDict, customList, categoryMap, removeKind, previewFn, hintFn)=>{
     const h = document.createElement('h2'); h.style.textAlign='center'; h.textContent = label;
     c.appendChild(h);
     Object.keys(categoryMap).forEach(catKey=>{
@@ -3514,20 +3543,20 @@ function playcallReferenceCard(){
       const grid = document.createElement('div'); grid.className='choice-grid';
       built.forEach(k=>{
         const item = document.createElement('div'); item.className='choice-btn';
-        item.style.cursor = clickable ? 'pointer' : 'default';
+        item.style.cursor = previewFn ? 'pointer' : 'default';
         item.dataset.search = (builtinDict[k].name + ' ' + (builtinDict[k].note||'')).toLowerCase();
         const hint = hintFn ? hintFn(k) : null;
         item.innerHTML = `<span class="name">${builtinDict[k].name}</span><span class="desc">${builtinDict[k].note||''}</span>${hint?`<span class="strength-hint">${hint}</span>`:''}`;
-        if(clickable) item.onclick = ()=> renderPlayPreviewSvg(builtinDict[k]);
+        if(previewFn) item.onclick = ()=> previewFn(builtinDict[k]);
         grid.appendChild(item);
       });
       custom.forEach(item=>{
         const cell = document.createElement('div'); cell.className='choice-btn-wrap';
         cell.dataset.search = (item.name + ' ' + (item.note||'')).toLowerCase();
         const btn = document.createElement('div'); btn.className='choice-btn';
-        btn.style.cursor = clickable ? 'pointer' : 'default';
+        btn.style.cursor = previewFn ? 'pointer' : 'default';
         btn.innerHTML = `<span class="name">${item.name} <span class="custom-pill">yours</span></span><span class="desc">${item.note||''}</span>`;
-        if(clickable) btn.onclick = ()=> renderPlayPreviewSvg(item);
+        if(previewFn) btn.onclick = ()=> previewFn(item);
         cell.appendChild(btn);
         const rm = document.createElement('button');
         rm.type='button'; rm.className='remove-btn'; rm.textContent='\u00d7'; rm.title='Remove';
@@ -3544,9 +3573,9 @@ function playcallReferenceCard(){
       c.appendChild(grid);
     });
   };
-  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay', true, playStrengthHint);
+  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay', renderPlayPreviewSvg, playStrengthHint);
   const divider = document.createElement('div'); divider.className='divider'; c.appendChild(divider);
-  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall', false, callStrengthHint);
+  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall', renderCallPreviewSvg, callStrengthHint);
 
   requestAnimationFrame(()=>{
     const search = document.getElementById('playcallSearch');
