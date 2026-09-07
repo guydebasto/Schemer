@@ -1,0 +1,11 @@
+{
+  "name": "schemer-tests",
+  "version": "1.0.0",
+  "description": "Regression test suite for Schemer (football tactics trainer)",
+  "scripts": {
+    "test": "node tests/run_all.js"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0"
+  }
+}
