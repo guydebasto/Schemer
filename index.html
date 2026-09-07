@@ -3011,12 +3011,35 @@ function renderInlineEditor(){
   return wrap;
 }
 
+function renderPlayPreviewSvg(playObj){
+  const container = document.getElementById('playcallPreviewSvg');
+  const label = document.getElementById('playcallPreviewLabel');
+  if(!container) return;
+  container.innerHTML = '';
+  const ly = EDITOR_LOS_Y;
+  const svg = el('svg', {viewBox:`0 ${ly-140} 640 190`, xmlns:svgNS, style:'width:100%;height:auto;display:block;'});
+  svg.appendChild(el('rect',{x:0,y:ly-140,width:640,height:190,fill:'var(--board)'}));
+  svg.appendChild(el('line',{x1:40,y1:ly,x2:600,y2:ly,stroke:'var(--chalk-dim)','stroke-width':1,'stroke-dasharray':'4,4'}));
+  const pts = offensePoints('singleback', null);
+  pts.forEach((p,i)=>{
+    svg.appendChild(makeMarker(p.x, ly+p.y, i===2?'square':'X', 'var(--gold)', false, i));
+  });
+  routeEndpointsFor(playObj, 'singleback', null, ly).forEach(({start,end})=>{
+    svg.appendChild(el('line',{x1:start.x,y1:start.y,x2:end.x,y2:end.y,stroke:'var(--gold)','stroke-width':2,'stroke-dasharray':'4,4',opacity:'0.9'}));
+    svg.appendChild(el('circle',{cx:end.x,cy:end.y,r:4,fill:'var(--gold)'}));
+  });
+  container.appendChild(svg);
+  if(label) label.textContent = playObj.name + ' \u2014 shown against a Singleback look';
+}
+
 function playcallReferenceCard(){
   const c = document.createElement('div'); c.className='lobby-card'; c.style.textAlign='left'; c.style.marginTop='16px';
   c.innerHTML = `<h2 style="text-align:center;">All Playcalls</h2>
-    <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created.</p>`;
+    <p class="sub">Every play and call in the game, for reference \u2014 built-ins plus anything you've created. Tap an offensive play to see it run.</p>
+    <div id="playcallPreviewLabel" class="sub" style="text-align:center;min-height:16px;"></div>
+    <div id="playcallPreviewSvg" class="ed-canvas-wrap" style="margin-bottom:14px;"></div>`;
 
-  const renderSide = (label, builtinDict, customList, categoryMap, removeKind)=>{
+  const renderSide = (label, builtinDict, customList, categoryMap, removeKind, clickable)=>{
     const h = document.createElement('h2'); h.style.textAlign='center'; h.textContent = label;
     c.appendChild(h);
     Object.keys(categoryMap).forEach(catKey=>{
@@ -3027,18 +3050,23 @@ function playcallReferenceCard(){
       c.appendChild(heading);
       const grid = document.createElement('div'); grid.className='choice-grid';
       built.forEach(k=>{
-        const item = document.createElement('div'); item.className='choice-btn'; item.style.cursor='default';
+        const item = document.createElement('div'); item.className='choice-btn';
+        item.style.cursor = clickable ? 'pointer' : 'default';
         item.innerHTML = `<span class="name">${builtinDict[k].name}</span><span class="desc">${builtinDict[k].note||''}</span>`;
+        if(clickable) item.onclick = ()=> renderPlayPreviewSvg(builtinDict[k]);
         grid.appendChild(item);
       });
       custom.forEach(item=>{
         const cell = document.createElement('div'); cell.className='choice-btn-wrap';
-        const btn = document.createElement('div'); btn.className='choice-btn'; btn.style.cursor='default';
+        const btn = document.createElement('div'); btn.className='choice-btn';
+        btn.style.cursor = clickable ? 'pointer' : 'default';
         btn.innerHTML = `<span class="name">${item.name} <span class="custom-pill">yours</span></span><span class="desc">${item.note||''}</span>`;
+        if(clickable) btn.onclick = ()=> renderPlayPreviewSvg(item);
         cell.appendChild(btn);
         const rm = document.createElement('button');
         rm.type='button'; rm.className='remove-btn'; rm.textContent='\u00d7'; rm.title='Remove';
-        rm.onclick = async ()=>{
+        rm.onclick = async (ev)=>{
+          ev.stopPropagation();
           if(confirm(`Remove "${item.name}"? This can't be undone.`)){
             await removeCustomItem(removeKind, item.id);
             refreshCurrentView();
@@ -3050,9 +3078,9 @@ function playcallReferenceCard(){
       c.appendChild(grid);
     });
   };
-  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay');
+  renderSide('Offence', plays, customOffPlays, PLAY_CATEGORIES, 'offPlay', true);
   const divider = document.createElement('div'); divider.className='divider'; c.appendChild(divider);
-  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall');
+  renderSide('Defence', calls, customDefCalls, CALL_CATEGORIES, 'defCall', false);
   return c;
 }
 
