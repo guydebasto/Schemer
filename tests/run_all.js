@@ -39,6 +39,7 @@ function freshWindow(extra){
       motionManIndex, motionFinalPosFor, resolveMotionCollision, commitMotionChoice,
       offensePoints, defensePoints, losY, routeEndpointsFor, resolvePlay, freshGame,
       aiPickPlay, aiPickCall, frontSafetyCount, pointAlongRoute, playStrengthHint, callStrengthHint,
+      routeProgressFor, screenTargetIndex,
       applyMotionToPlay: typeof applyMotionToPlay!=='undefined'?applyMotionToPlay:null,
     };
     ${extra||''}
@@ -156,7 +157,8 @@ console.log('\n=== 6. Route generation stays in bounds and never goes behind whe
       let endpoints;
       try { endpoints = routeEndpointsFor(plays[playKey], formKey, null, ly); }
       catch(e){ issues.push(`${formKey}/${playKey} threw: ${e.message}`); return; }
-      if (endpoints.length !== 6) issues.push(`${formKey}/${playKey} produced ${endpoints.length} routes, expected 6`);
+      const expectedCount = formKey === 'wildcat' ? 6 : 5; // QB excluded from routes everywhere except Wildcat, where index 5 is the RB (direct snap), not a QB
+      if (endpoints.length !== expectedCount) issues.push(`${formKey}/${playKey} produced ${endpoints.length} routes, expected ${expectedCount}`);
       endpoints.forEach(({start,mid,end}) => {
         [mid, end].filter(Boolean).forEach(pt=>{
           if (pt.x < 40 || pt.x > 600) issues.push(`${formKey}/${playKey} route off the field: ${JSON.stringify(pt)}`);
@@ -415,7 +417,7 @@ console.log('\n=== 17. Custom route drawing supports a real stem-then-break shap
 
   const { routeEndpointsFor, losY } = w.__exports;
   const eps = routeEndpointsFor({routes: ed.routes}, 'singleback', null, losY(50));
-  const r7 = eps[2];
+  const r7 = eps[1]; // QB (index 5) is now excluded from routes entirely, so index 7's drawn route shifts to array position [1]
   assert(!!r7.mid, 'the drawn route resolves to a path with a real break point, matching the built-in named plays');
 }
 
@@ -576,6 +578,32 @@ console.log('\n=== 24. Ball carrier and tackler are both highlighted after every
   assert(highlights.length === 2, 'exactly two highlight rings appear after a play resolves', highlights.length);
   assert(highlights.some(h=>h.getAttribute('stroke')==='var(--gold)'), 'the ball carrier is highlighted in gold');
   assert(highlights.some(h=>h.getAttribute('stroke')==='var(--brick)'), 'the tackler is highlighted in brick red');
+}
+
+console.log('\n=== 25. QB never gets a route, and long plays don\u2019t make receivers glide in slow motion ===');
+{
+  const { w } = freshWindow();
+  const { plays, formations, routeEndpointsFor, offensePoints, losY, routeProgressFor } = w.__exports;
+  const passPlayKeys = Object.keys(plays).filter(k => typeof plays[k].routes === 'function');
+  const ly = losY(50);
+
+  let qbLeaked = false, badCase = null;
+  Object.keys(formations).forEach(formKey=>{
+    const pts = offensePoints(formKey, null);
+    const qbIdx = pts.findIndex(p=>p.label==='QB');
+    if(qbIdx === -1) return; // Wildcat has no QB \u2014 direct snap to the RB, nothing to check
+    passPlayKeys.forEach(playKey=>{
+      const eps = routeEndpointsFor(plays[playKey], formKey, null, ly);
+      const qbStart = { x: pts[qbIdx].x, y: ly + pts[qbIdx].y };
+      if(eps.some(e => Math.abs(e.start.x-qbStart.x)<0.1 && Math.abs(e.start.y-qbStart.y)<0.1)){
+        qbLeaked = true; badCase = `${formKey}/${playKey}`;
+      }
+    });
+  });
+  assert(!qbLeaked, 'the QB never appears among the route-running receivers, in any formation or pass play', badCase);
+
+  assert(routeProgressFor(0.3) === 1, 'a receiver\u2019s route is fully complete by 30% into the play\u2019s total animation time (representing a quick release+catch)');
+  assert(routeProgressFor(0.9) === 1, 'the route stays complete (holds position) for the rest of a long-developing play, instead of continuing to glide');
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

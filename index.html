@@ -1767,6 +1767,7 @@ function routeEndpointsFor(play, offKey, offCustom, ly){
   const list = [];
   for(let i=5; i<pts.length; i++){
     const p = pts[i];
+    if(p.label === 'QB') continue; // he's throwing the ball, not running a route
     const start = { x:p.x, y: ly+p.y };
     const raw = routeRawFor(play, p, i, ctx);
     let mid = null, end;
@@ -1783,6 +1784,13 @@ function routeEndpointsFor(play, offKey, offCustom, ly){
 }
 
 // Constant-speed position along a 1- or 2-segment route path at progress t (0..1).
+// Receivers finish their route (the release and catch) within the first slice of the overall
+// animation regardless of how long the play ultimately takes \u2014 a long breakaway shouldn't make
+// them look like they're gliding in slow motion for the whole run.
+function routeProgressFor(ballT){
+  return easeOutCubic(Math.min(ballT / 0.3, 1));
+}
+
 function pointAlongRoute(start, mid, end, t){
   if(!mid) return { x: start.x + (end.x-start.x)*t, y: start.y + (end.y-start.y)*t };
   const d1 = Math.hypot(mid.x-start.x, mid.y-start.y);
@@ -1872,7 +1880,7 @@ function drawPlayResult(dyn, ly, animate){
     const dx0 = pos.x - startX, dy0 = pos.y - startY;
     ballLines.forEach((l,i)=> setAttrs(l, {x1:ballOffsets[i].x1+dx0, y1:ballOffsets[i].y1+dy0, x2:ballOffsets[i].x2+dx0, y2:ballOffsets[i].y2+dy0}));
 
-    const routeT = easeOutCubic(ballT);
+    const routeT = routeProgressFor(ballT);
     routeAnimators.forEach(a=>{
       const pos = pointAlongRoute(a.start, a.mid, a.end, routeT);
       const rdx = pos.x-a.start.x, rdy = pos.y-a.start.y;
