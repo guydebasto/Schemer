@@ -160,6 +160,15 @@
 
   /* --- lobby --- */
   .lobby-card{ border:1px dashed var(--board-line); padding:22px 18px; text-align:center; }
+  .onboarding-overlay{
+    position:fixed; inset:0; background:rgba(10,10,10,0.82); z-index:500;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .onboarding-card{
+    background:var(--bg-dark); border:1px solid var(--gold-dim); padding:26px 22px;
+    max-width:420px; width:100%; text-align:center;
+  }
+  .onboarding-progress{ font-size:11px; color:var(--chalk-dim); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:6px; }
   .lobby-card h2{ font-size:18px; margin:0 0 6px; }
   .lobby-card p.sub{ font-size:13px; color:var(--chalk-dim); margin:0 0 20px; }
   .role-pick{ display:flex; gap:10px; justify-content:center; margin-bottom:8px; }
@@ -1071,6 +1080,51 @@ function genCode(){
   return s;
 }
 
+const ONBOARDING_SLIDES = [
+  { title:"Welcome to Schemer", body:"A tactical American football trainer. Set a formation, call a play, watch the read develop \u2014 against a friend, an AI, or by yourself. This is a quick tour of how a snap actually works." },
+  { title:"1. Offence sets the formation", body:"Offence picks a formation first \u2014 and it's visible to the defence right away, exactly like real football. Every skill player is a real position (QB, RB, WR, TE), not just a dot \u2014 turn on \u201clabels\u201d anytime to see who's who." },
+  { title:"2. Defence matches the front", body:"The defence sees that formation and picks their own personnel and alignment in response \u2014 also fully visible. This is the pre-snap chess match before anything's actually called." },
+  { title:"3. Motion (optional)", body:"Offence can shift a player before the snap \u2014 Jet, Orbit, Shift, or Return. It's visible in real time, and the defence gets a genuine chance to adjust their front in response, just like reacting to real pre-snap movement." },
+  { title:"4. The actual play call", body:"Now it gets hidden. Offence picks a play and the defence picks a call \u2014 neither side can see the other's choice. Both get revealed together at the snap, and the result plays out based on how the two matched up." },
+  { title:"Personnel actually matters", body:"You can't run a Draw or Sweep without a real running back in your formation \u2014 the game won't let you call it. Same for defence: coverages like Cover 2 or Prevent need enough safeties on the field, or they're not available either." },
+  { title:"Build your own playbook", body:"Head to Practice to draw your own formations, fronts, and plays \u2014 including drawing exact receiver routes. The play picker defaults to 8 core plays per side to start; tap \u201cshow all\u201d anytime to see the full 22/18-play book." },
+];
+
+function showOnboarding(){
+  const old = document.getElementById('onboardingOverlay');
+  if(old) old.remove();
+  let step = 0;
+  const overlay = document.createElement('div');
+  overlay.id = 'onboardingOverlay';
+  overlay.className = 'onboarding-overlay';
+  const card = document.createElement('div');
+  card.className = 'onboarding-card';
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  function renderStep(){
+    const s = ONBOARDING_SLIDES[step];
+    card.innerHTML = `
+      <div class="onboarding-progress">Step ${step+1} of ${ONBOARDING_SLIDES.length}</div>
+      <h2>${s.title}</h2>
+      <p class="sub">${s.body}</p>
+      <div class="lobby-actions" style="margin-top:16px;">
+        ${step>0 ? '<button class="ghost" id="obBack">Back</button>' : '<span></span>'}
+        ${step<ONBOARDING_SLIDES.length-1 ? '<button id="obNext">Next</button>' : '<button id="obDone">Let\u2019s play</button>'}
+      </div>
+      <div class="footer-link" style="margin-top:10px;"><a id="obSkip">Skip</a></div>`;
+    if(step>0) document.getElementById('obBack').onclick = ()=>{ step--; renderStep(); };
+    if(step<ONBOARDING_SLIDES.length-1) document.getElementById('obNext').onclick = ()=>{ step++; renderStep(); };
+    else document.getElementById('obDone').onclick = closeOnboarding;
+    document.getElementById('obSkip').onclick = closeOnboarding;
+  }
+  function closeOnboarding(){
+    lsSetJSON('schemer:onboardingSeen', true);
+    overlay.remove();
+  }
+  renderStep();
+}
+
 function notConfiguredNotice(){
   alert("Online multiplayer needs a Firebase config \u2014 fill in the firebaseConfig object near the top of this file (see the comment above it for instructions).");
 }
@@ -1239,10 +1293,12 @@ function renderLobby(){
       <div class="lobby-actions">
         <button id="btnGoPlay">Start playing</button>
         <button class="ghost" id="btnGoPractice">Build a playbook</button>
-      </div>`;
+      </div>
+      <div class="footer-link" style="margin-top:10px;"><a id="btnHowToPlay">How does this work?</a></div>`;
     lobby.appendChild(c);
     document.getElementById('btnGoPlay').onclick = ()=> goToScreen('landing');
     document.getElementById('btnGoPractice').onclick = ()=> goToScreen('editor');
+    document.getElementById('btnHowToPlay').onclick = ()=> showOnboarding();
     return;
   }
 
@@ -3648,6 +3704,7 @@ document.querySelectorAll('.topnav button').forEach(b=> b.onclick = ()=> goToScr
   const resumed = await tryResumeSession();
   if(!resumed){ appScreen = 'home'; renderLobby(); }
   updateNavActive();
+  if(!resumed && !lsGetJSON('schemer:onboardingSeen')) showOnboarding();
 })();
 
 document.addEventListener('keydown', e=>{

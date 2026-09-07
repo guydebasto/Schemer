@@ -443,6 +443,36 @@ console.log('\n=== 19. Reference page search filters correctly ===');
   assert(visibleAfterClear.length === 40, 'clearing the search restores all 40 entries', visibleAfterClear.length);
 }
 
+console.log('\n=== 20. Onboarding walkthrough shows for first-time visitors and never bothers returning ones ===');
+{
+  const dom1 = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://example.com/' });
+  dom1.window.firebase = { initializeApp(){}, database: () => ({ ref: () => ({ set: async()=>{}, once: async()=>({val:()=>null}), on(){}, off(){} }) }) };
+  dom1.window.firebase.database.ServerValue = { increment: n => ({__inc:n}) };
+  dom1.window.prompt = () => 'x'; dom1.window.alert = () => {};
+  dom1.window.eval(appScript);
+  await new Promise(r=>setTimeout(r,100));
+  assert(!!dom1.window.document.getElementById('onboardingOverlay'), 'a first-time visitor sees the onboarding overlay automatically');
+  dom1.window.document.getElementById('obDone') || null;
+  for(let i=0;i<6;i++){ const n = dom1.window.document.getElementById('obNext'); if(n) n.click(); }
+  const doneBtn = dom1.window.document.getElementById('obDone');
+  assert(!!doneBtn, 'navigating Next through all slides reaches a final "Let\u2019s play" step');
+  doneBtn.click();
+  assert(dom1.window.localStorage.getItem('schemer:onboardingSeen') === 'true', 'finishing the walkthrough marks it seen in localStorage');
+
+  const dom2 = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://example.com/' });
+  dom2.window.firebase = { initializeApp(){}, database: () => ({ ref: () => ({ set: async()=>{}, once: async()=>({val:()=>null}), on(){}, off(){} }) }) };
+  dom2.window.firebase.database.ServerValue = { increment: n => ({__inc:n}) };
+  dom2.window.prompt = () => 'x'; dom2.window.alert = () => {};
+  dom2.window.localStorage.setItem('schemer:onboardingSeen', 'true');
+  dom2.window.eval(appScript);
+  await new Promise(r=>setTimeout(r,100));
+  assert(!dom2.window.document.getElementById('onboardingOverlay'), 'a returning visitor is never shown the overlay automatically');
+  const howBtn = dom2.window.document.getElementById('btnHowToPlay');
+  assert(!!howBtn, '"How does this work?" link is available to reopen it manually');
+  howBtn.click();
+  assert(!!dom2.window.document.getElementById('onboardingOverlay'), 'clicking it reopens the walkthrough on demand');
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed > 0 ? 1 : 0);
 
