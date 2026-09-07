@@ -33,11 +33,13 @@ function freshWindow(extra){
   w.confirm = () => true;
   w.eval(appScript + `
     window.__getGame = () => game;
+    window.__getEd = () => ed;
     window.__exports = {
       formations, fronts, plays, calls, outcomes, categoryMatrix, formationHasBack,
       motionManIndex, motionFinalPosFor, resolveMotionCollision, commitMotionChoice,
       offensePoints, defensePoints, losY, routeEndpointsFor, resolvePlay, freshGame,
-      aiPickPlay, applyMotionToPlay: typeof applyMotionToPlay!=='undefined'?applyMotionToPlay:null,
+      aiPickPlay, aiPickCall, frontSafetyCount,
+      applyMotionToPlay: typeof applyMotionToPlay!=='undefined'?applyMotionToPlay:null,
     };
     ${extra||''}
   `);
@@ -225,6 +227,41 @@ console.log('\n=== 10. AI turn-taking never stalls ===');
   w.startAIGame('defense', 'medium', 'balanced', 'balanced', false);
   await new Promise(r=>setTimeout(r, 900));
   assert(w.__getGame().phase === 'DEF_FRONT', 'AI (offense) picks a formation without prompting', w.__getGame().phase);
+}
+
+console.log('\n=== 11. Editor undo restores prior state ===');
+{
+  const { w } = freshWindow();
+  w.goToScreen('editor');
+  const ed = w.__getEd();
+  const origX = ed.points[5].x;
+  w.edSnapshot();
+  ed.points[5] = {...ed.points[5], x: origX + 100};
+  assert(ed.points[5].x === origX + 100, 'point drag mutation applied (sanity check)');
+  w.edUndo();
+  assert(w.__getEd().points[5].x === origX, 'undo restores the point to its pre-drag position');
+
+  w.edSwitchType('play');
+  const ed2 = w.__getEd();
+  w.edSnapshot();
+  ed2.routes = { 7: {dx:50,dy:-60} };
+  w.edUndo();
+  assert(Object.keys(w.__getEd().routes).length === 0, 'undo restores routes after a simulated route draw');
+}
+
+console.log('\n=== 12. Defensive personnel gating (safety-count requirements) ===');
+{
+  const { w } = freshWindow();
+  const { frontSafetyCount, calls, aiPickCall } = w.__exports;
+  assert(frontSafetyCount('bearbox', null) === 1, 'Bear front correctly has 1 safety');
+  assert(frontSafetyCount('bignickel', null) === 3, 'Big Nickel front correctly has 3 safeties');
+  assert(calls.prevent.needsSafeties === 3 && calls.cover2.needsSafeties === 2, 'Prevent/Cover 2 have safety requirements defined');
+  let aiViolated = false;
+  for (let i=0;i<200;i++){
+    const pick = aiPickCall(2, 8, 50, 'insane', 'aggressive', 1); // simulate a 1-safety front
+    if (pick && !pick.isCustom && calls[pick.key] && calls[pick.key].needsSafeties > 1) { aiViolated = true; break; }
+  }
+  assert(!aiViolated, 'AI never calls a needs-safeties call it lacks bodies for (200 trials)');
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);
